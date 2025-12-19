@@ -1,7 +1,5 @@
 # 🎯 Level0 - The Beginning
 
-![Helldivers Salute](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExejJwMnpmeXZ0dHp1enptbDE2am9la2Z4Ymg0eXczcmRiNzFqczJjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VJN5s9dNGXLDqkLYF4/giphy.gif)
-
 Welcome to the first level of Rainfall! 🌧️
 
 ## 📋 Binary Analysis
@@ -66,3 +64,13 @@ cat /home/user/level1/.pass
 ---
 
 > 💡 **Tip**: Always check for magic numbers and SUID binaries!
+
+## 🎉 Victory!
+
+![Helldivers Celebration](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExempicnBhODF0Y3BrZG5zaWIzMmM2MWExdDZuYWNnYWJrdnRtYXg4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MlyicdUndRbn5zUiAL/giphy.gif)
+
+**Flag captured!** 🚩
+
+```
+1fe8a524fa4bec01ca4ea2a869af2a02260d4a7d5fe7e7c24d8617e6dca12d3a
+```

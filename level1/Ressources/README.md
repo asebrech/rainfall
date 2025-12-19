@@ -1,5 +1,7 @@
 # 💥 Level1 - Classic Buffer Overflow
 
+![Helldivers Salute](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExejJwMnpmeXZ0dHp1enptbDE2am9la2Z4Ymg0eXczcmRiNzFqczJjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VJN5s9dNGXLDqkLYF4/giphy.gif)
+
 Time to learn the classic buffer overflow! 🌊
 
 ## 📋 Binary Analysis
