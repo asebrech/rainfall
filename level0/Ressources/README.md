@@ -1,5 +1,7 @@
 # 🎯 Level0 - The Beginning
 
+![Helldivers Salute](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJwbjNyMW40cTRnZWk0Y3NtejlzdzN5dWFyNGVwcDUxcGVudGpsaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/KAf66yGCa93uTqod1q/giphy.gif)
+
 Welcome to the first level of Rainfall! 🌧️
 
 ## 📋 Binary Analysis
