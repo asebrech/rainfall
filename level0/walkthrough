@@ -1,0 +1,19 @@
+1. Download the binary from the server:
+   scp -P 4242 level0@192.168.1.13:~/level0 .
+
+2. Analyze the binary with Ghidra or any disassembler
+
+3. The main function compares the first argument with 0x1a7 (423 in decimal)
+
+4. If the condition is met, it spawns a shell with elevated privileges (level1)
+
+5. Execute the exploit:
+   ./level0 423
+
+6. Read the password file:
+   cat /home/user/level1/.pass
+
+7. The password is: 1fe8a524fa4bec01ca4ea2a869af2a02260d4a7d5fe7e7c24d8617e6dca12d3a
+
+8. Exit the shell and login as level1:
+   su level1
