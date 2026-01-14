@@ -1,6 +1,6 @@
 # 💥 Level2 - Return-to-Heap Exploit
 
-![Helldivers Battle](https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExaHB4ZjJrYjBpYnZ0cGt5YmJkdHNmOXN4Nnh1eHBxZGE3YmVyNmRnZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3q2K5jinAlChoCLS/giphy.gif)
+![Helldivers Salute](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExejJwMnpmeXZ0dHp1enptbDE2am9la2Z4Ymg0eXczcmRiNzFqczJjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VJN5s9dNGXLDqkLYF4/giphy.gif)
 
 Advanced buffer overflow with heap exploitation! 🔥
 
@@ -186,7 +186,7 @@ Heap (0x0804a...)   ← Our shellcode lives here!
 
 ## 🎉 Victory!
 
-![Helldivers Victory](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbGJ6eWN6cjZlZXQxOWUwOGVxZnMwYzU3ZmE5ZWI2YjFjNXA5ZDJhZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/26BRuo6sLetdllPAQ/giphy.gif)
+![Helldivers Celebration](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExempicnBhODF0Y3BrZG5zaWIzMmM2MWExdDZuYWNnYWJrdnRtYXg4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MlyicdUndRbn5zUiAL/giphy.gif)
 
 **Flag captured!** 🚩
 
