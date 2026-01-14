@@ -88,6 +88,26 @@ cat /home/user/level2/.pass
 
 > ⚠️ **Security Note**: This is why modern systems have stack canaries, ASLR, and DEP!
 
+## 📚 References & Further Reading
+
+### Academic Papers & Tutorials
+- **[Smashing the Stack for Fun and Profit](https://phrack.org/issues/49/14.html)** (1996) - Aleph One (Phrack Magazine)  
+  The legendary paper that introduced stack buffer overflow exploitation to the masses
+
+### Security Resources
+- **[OWASP Buffer Overflow](https://owasp.org/www-community/vulnerabilities/Buffer_Overflow)**  
+  Comprehensive guide to buffer overflow vulnerabilities and prevention
+
+- **[Wikipedia: Buffer Overflow](https://en.wikipedia.org/wiki/Buffer_overflow)**  
+  Technical description, exploitation techniques, and history including the Morris Worm
+
+- **[Wikipedia: Stack Buffer Overflow](https://en.wikipedia.org/wiki/Stack_buffer_overflow)**  
+  Detailed explanation of stack-based buffer overflow attacks
+
+### Historical Context
+- **Morris Worm (1988)**: First major buffer overflow exploit using `gets()` in fingerd
+- **Unsafe Functions**: `gets()`, `strcpy()`, `scanf()` - all deprecated due to lack of bounds checking
+
 ## 🎉 Victory!
 
 ![Helldivers Celebration](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExempicnBhODF0Y3BrZG5zaWIzMmM2MWExdDZuYWNnYWJrdnRtYXg4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MlyicdUndRbn5zUiAL/giphy.gif)
