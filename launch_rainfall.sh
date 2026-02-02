@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 qemu-system-x86_64 \
   -cdrom ./RainFall.iso \
