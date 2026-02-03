@@ -11,7 +11,16 @@
   # languages.rust.enable = true;
 
   # https://devenv.sh/processes/
-  # processes.dev.exec = "${lib.getExe pkgs.watchexec} -n -- ls -la";
+  processes.rainfall-vm.exec = ''
+    ${pkgs.qemu}/bin/qemu-system-x86_64 \
+      -cdrom ./RainFall.iso \
+      -boot d \
+      -m 2048 \
+      -net nic \
+      -net user,hostfwd=tcp::2222-:4242 \
+      -display none \
+      -daemonize
+  '';
 
   # https://devenv.sh/services/
   # services.postgres.enable = true;
