@@ -103,23 +103,6 @@ x86 processors store multi-byte values with the **least significant byte first**
 cat /home/user/level2/.pass
 ```
 
-## 🔑 Key Concepts
-
-- 🚫 **Never use `gets()`** - it's deprecated for a reason!
-- 🔄 **Little-endian** - bytes are reversed on x86
-- 📚 **Stack layout** - understanding buffer → EBP → return address
-- 🎭 **Hidden functions** - always check the symbol table
-- 🐱 **`cat` trick** - keeps stdin open for interactive shells
-
-## 🎓 Learning Points
-
-| Concept | Description |
-|---------|-------------|
-| Buffer Overflow | Writing beyond allocated memory |
-| Return Address | Pointer to code execution after function returns |
-| Little-endian | Byte order: least significant byte first |
-| SUID Binary | Runs with owner's privileges (level2) |
-
 ---
 
 > 💡 **Pro Tip**: Use `(python -c '...'; cat)` pattern for any exploit that spawns an interactive shell!

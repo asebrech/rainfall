@@ -132,52 +132,6 @@ whoami    # level3
 cat /home/user/level3/.pass
 ```
 
-## 🔑 Key Concepts
-
-| Concept | Description |
-|---------|-------------|
-| **Return-to-Heap** | Bypass stack protection by executing code from heap |
-| **strdup()** | Copies string to heap using malloc |
-| **No ASLR** | Address Space Layout Randomization disabled - predictable addresses |
-| **Address Filtering** | Protection checks return address to prevent stack-based exploits |
-| **NX Disabled** | Can execute code from heap (no DEP protection) |
-| **Little-endian** | Addresses stored LSB first: 0x0804a008 → \x08\xa0\x04\x08 |
-
-## 🎓 Learning Points
-
-### Why This Works
-1. ✅ **gets()** allows buffer overflow
-2. ✅ **strdup()** copies our shellcode to **predictable heap address**
-3. ✅ Heap address `0x0804a008` bypasses the `0xb...` stack check
-4. ✅ **No ASLR** - heap address is always the same
-5. ✅ **No NX** - we can execute code from heap
-
-### Security Mitigations Bypassed
-- ❌ Stack canaries: None present
-- ❌ ASLR: Disabled
-- ❌ DEP/NX: Not enforced on heap
-- ✅ Stack address filtering: **Bypassed by using heap!**
-
-### Modern Protections That Would Stop This
-- 🛡️ **ASLR**: Randomizes heap addresses
-- 🛡️ **DEP/NX**: Marks heap as non-executable
-- 🛡️ **Full RELRO**: Makes GOT read-only
-- 🛡️ **Stack canaries**: Detect buffer overflows
-
-## 📊 Memory Layout
-
-```
-Stack (0xbffff...)  ← Blocked by protection check
-    ↓
-[Buffer: 76 bytes]
-[Saved EBP: 4 bytes]
-[Return Address: 4 bytes] ← We overwrite with 0x0804a008
-    ↓
-Heap (0x0804a...)   ← Our shellcode lives here!
-    ↓
-[Shellcode: 26 bytes] ← Execution jumps here
-```
-
 ---
 
 > 💡 **Pro Tip**: When stack is protected, look for heap allocations like `malloc()`, `strdup()`, `calloc()`!

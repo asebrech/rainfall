@@ -55,14 +55,6 @@ Then read the password:
 cat /home/user/level1/.pass
 ```
 
-## 🔑 Key Points
-
-- 🔢 **Magic number**: `0x1a7` = `423` (decimal)
-- 🔐 **Binary permissions**: `-rwsr-s---+ 1 level2 users`
-- ⚙️ Uses `setresuid`/`setresgid` to set privileges before spawning shell
-- 🎮 No buffer overflow needed, just simple logic bypass
-- ⚡ Difficulty: **Trivial** - Perfect warm-up!
-
 ---
 
 > 💡 **Tip**: Always check for magic numbers and SUID binaries!
