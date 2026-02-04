@@ -1,5 +1,6 @@
 1. Download the binary from the server:
    scp -P 2222 level0@localhost:~/level0 .
+   Password: level0
 
 2. Analyze the binary with Ghidra or any disassembler
 

@@ -6,15 +6,6 @@ Welcome to format string exploitation! 🎨
 
 ## 📋 Binary Analysis
 
-### 🔍 Main Function (Ghidra)
-```c
-void main(void)
-{
-  v();
-  return;
-}
-```
-
 ### 🎯 V Function (Decompiled)
 ```c
 void v(void)
@@ -114,24 +105,6 @@ cat /home/user/level4/.pass
 > 💡 **Pro Tip**: Always use `printf("%s", buffer)` instead of `printf(buffer)`!
 
 > ⚠️ **Security Note**: Format string bugs were extremely common in the 90s/2000s and led to many exploits!
-
-## 📚 References & Further Reading
-
-### Academic Papers
-- **[Exploiting Format String Vulnerabilities](https://cs155.stanford.edu/papers/formatstring-1.2.pdf)** (2001) - Stanford CS155  
-  The seminal paper on format string exploitation by Tim Newsham
-
-### Security Resources
-- **[OWASP Format String Attack](https://owasp.org/www-community/attacks/Format_string_attack)**  
-  Comprehensive guide to format string vulnerabilities and attacks
-
-- **[Wikipedia: Format String Attack](https://en.wikipedia.org/wiki/Format_string_attack)**  
-  Historical context and technical overview
-
-### Exploit Techniques
-- **Format String Parameter Types**: `%x` (read), `%s` (read string), `%n` (write)
-- **Direct Parameter Access**: `%4$n` accesses 4th argument directly
-- **Arbitrary Memory Write**: Combining address placement with `%n` specifier
 
 ## 🎉 Victory!
 
