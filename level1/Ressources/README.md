@@ -60,6 +60,16 @@ Our malicious input does the following:
 
 **Key insight:** The `ret` instruction automatically loads `[ESP]` into EIP. By controlling what's on the stack at ESP, we control where the program jumps!
 
+### CPU Registers Explained
+
+Before diving into the exploit, let's understand the key x86 registers:
+
+| Register | Full Name | Purpose |
+|----------|-----------|---------|
+| **EIP** | Instruction Pointer | Points to the **next instruction** to execute. When `ret` executes, it loads the return address into EIP. |
+| **ESP** | Stack Pointer | Points to the **top of the stack** (lowest address). The `ret` instruction reads from `[ESP]`. |
+| **EBP** | Base Pointer | Points to the **base of the current stack frame**. Used to access local variables and parameters. |
+
 ### Memory State After Overflow
 
 ```
