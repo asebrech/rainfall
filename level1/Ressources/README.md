@@ -107,7 +107,7 @@ cat /home/user/level2/.pass
 
 > 💡 **Pro Tip**: Use `(python -c '...'; cat)` pattern for any exploit that spawns an interactive shell!
 
-> ⚠️ **Security Note**: This is why modern systems have stack canaries, ASLR, and DEP!
+> ⚠️ **Security Note**: This is why modern systems have [stack canaries](https://en.wikipedia.org/wiki/Stack_buffer_overflow#Stack_canaries), [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization), and [DEP](https://en.wikipedia.org/wiki/Executable_space_protection)!
 
 ## 🎉 Victory!
 

@@ -136,7 +136,7 @@ cat /home/user/level3/.pass
 
 > 💡 **Pro Tip**: When stack is protected, look for heap allocations like `malloc()`, `strdup()`, `calloc()`!
 
-> ⚠️ **Security Note**: This demonstrates why multiple security layers (ASLR + DEP + Canaries) are needed!
+> ⚠️ **Security Note**: This demonstrates why multiple security layers ([ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) + [DEP](https://en.wikipedia.org/wiki/Executable_space_protection) + [Stack Canaries](https://en.wikipedia.org/wiki/Stack_buffer_overflow#Stack_canaries)) are needed!
 
 ## 🎉 Victory!
 
