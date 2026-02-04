@@ -61,6 +61,98 @@ This prevents classic stack-based exploits! Stack addresses start with `0xbffff.
 - No ASLR - heap address is **predictable**: `0x0804a008`
 - We can place shellcode in input → strdup copies to heap → jump to heap!
 
+## 🎯 How the Exploit Works
+
+### The Key Difference from Level1
+
+**Level1**: Return to a function already in memory  
+**Level2**: Can't return to stack (protected) → Return to **heap** where we inject our own code
+
+### Memory Layout: Stack vs Heap
+
+```
+High Memory
+├─────────────────────────┐
+│ Stack (0xbffff...)      │ ← Blocked by protection!
+│ [buffer with overflow]  │
+├─────────────────────────┤
+│ Libraries               │
+├─────────────────────────┤
+│ Heap (0x0804a...)       │ ← Our target! ✅
+│ [shellcode copied here] │
+├─────────────────────────┤
+│ Code (0x08048...)       │
+Low Memory
+```
+
+### The Attack Flow
+
+**Step 1: Craft Malicious Input**
+```
+[Shellcode: 24 bytes] + [Padding: 56 'A's] + [Heap Address: 0x0804a008]
+```
+
+**Step 2: gets() Writes to Stack**
+```
+Stack after gets():
+0xbffff7fc: 0x0804a008 ← Return address (overwritten!)
+0xbffff7f8: 0x41414141 ← Padding ('AAAA')
+...
+0xbffff7ac: [shellcode] ← Buffer start
+```
+
+**Step 3: Protection Check**
+```c
+if ((0x0804a008 & 0xb0000000) == 0xb0000000)  // FALSE ✅
+```
+- Our heap address `0x0804a008` doesn't start with `0xb`
+- Check passes! Program continues.
+
+**Step 4: strdup() Copies to Heap**
+```
+strdup(buffer) allocates heap memory and copies our shellcode:
+
+Heap at 0x0804a008:
+[\x31\xc0\x99\x50...]  ← Our shellcode now lives here!
+```
+
+**Step 5: Return to Heap**
+```
+p() returns:
+  ret → EIP = [ESP] = 0x0804a008
+  CPU jumps to heap!
+  Executes our shellcode!
+  Shell spawned! 🎉
+```
+
+### Why This Works
+
+| Requirement | Status | Explanation |
+|-------------|--------|-------------|
+| **Overflow** | ✅ | `gets()` has no bounds checking |
+| **Bypass check** | ✅ | Heap address `0x0804a008` doesn't match `0xb...` pattern |
+| **Predictable heap** | ✅ | No ASLR → heap always at same address |
+| **Executable heap** | ✅ | No DEP → can execute code from heap |
+| **strdup() magic** | ✅ | Copies our shellcode to known heap location |
+
+### Visual: Complete Exploit Chain
+
+```
+Input → gets() writes to stack buffer
+            ↓
+        Contains: [shellcode][padding][heap_addr]
+            ↓
+        strdup() copies to heap at 0x0804a008
+            ↓
+        Overflow overwrites return address → 0x0804a008
+            ↓
+        Protection check: 0x0804a008 & 0xb0000000 = 0x00000000 ✅
+            ↓
+        ret executes: EIP = 0x0804a008
+            ↓
+        Jump to heap → Execute shellcode → Shell! 🚩
+```
+
 ## 💣 Exploit Strategy
 
 ### Step 1: Analyze with Ghidra
