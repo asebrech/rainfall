@@ -142,5 +142,3 @@ cat /home/user/level4/.pass
 ```
 b209ea91ad69ef36f2cf0fcbbc24c739fd10464cf545b20bea8572ebdc3c36fa
 ```
-
-**Difficulty**: ⭐⭐⭐ Intermediate - Format string exploitation!
