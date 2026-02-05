@@ -36,25 +36,9 @@ m                                    XREF[2]: Entry Point(*), n:0804848d(R)
 
 **Address of `m`**: `0x08049810`
 
-## 🚨 What's New?
+## 🚨 The Challenge
 
-### Progression So Far
-
-| Level | Vulnerability | Target Value | Technique |
-|-------|--------------|--------------|-----------|
-| **Level1** | Buffer overflow | N/A (redirect EIP) | Return-to-function |
-| **Level2** | Buffer overflow | N/A (redirect EIP) | Return-to-heap |
-| **Level3** | Format string | 64 | Simple `%n` write |
-| **Level4** | Format string | **16,930,116** ⚡ | **Multi-word write** |
-
-### The Challenge
-
-In level3, we wrote `64` to `m` by printing 64 bytes:
-```bash
-"\x8c\x98\x04\x08" + "%60x%4$n"
-```
-
-For level4, we need to write `0x01025544` (16,930,116 in decimal).
+We need to write `0x01025544` (16,930,116 in decimal) to the global variable `m`.
 
 **Why can't we just do this?**
 ```bash
@@ -71,8 +55,6 @@ For level4, we need to write `0x01025544` (16,930,116 in decimal).
 ## 🎯 How the Exploit Works
 
 ### Understanding Format String Write Variants
-
-In level3, we used `%n` which writes 4 bytes. But there are smaller variants:
 
 | Specifier | Size | Max Value | Use Case |
 |-----------|------|-----------|----------|
@@ -209,16 +191,6 @@ system("/bin/cat /home/user/level5/.pass") executes! 🎉
 | **Two addresses** | ✅ | We place both m and m+2 on the stack |
 
 ### Key Insight
-
-**Level3 vs Level4:**
-
-| Aspect | Level3 | Level4 |
-|--------|--------|--------|
-| **Target value** | 64 | 16,930,116 |
-| **Write technique** | Single `%n` | Double `%hn` |
-| **Addresses needed** | 1 | 2 (m+0, m+2) |
-| **Bytes printed** | 64 | 258 + 21,570 |
-| **Complexity** | Simple | Advanced |
 
 **The Technique**: When target values are too large to print efficiently, split them into smaller chunks using `%hn` (16-bit) or `%hhn` (8-bit) writes to consecutive memory addresses. This transforms an impractical exploit into a fast one!
 
