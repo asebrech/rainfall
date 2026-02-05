@@ -367,15 +367,6 @@ Level8 introduces **heap layout manipulation**:
 
 ## 💣 Execute the Exploit
 
-Connect to the VM:
-
-```bash
-ssh level8@localhost -p 2222
-# Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
-```
-
-Run the exploit:
-
 ```bash
 level8@RainFall:~$ ./level8
 (nil), (nil)
