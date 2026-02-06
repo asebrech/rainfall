@@ -1,0 +1,67 @@
+1. Download the binary from the server:
+   scp -P 2222 bonus3@localhost:~/bonus3 .
+   Password: 71d449df0f960b36e0055eb58c14d0f5d0ddc0b35328d657f91cf0df15910587
+
+2. Analyze the binary with Ghidra:
+   - main() requires exactly 2 arguments (argc == 2)
+   - Opens "/home/user/end/.pass" for reading
+   - Creates two 66-byte buffers: buffer[66] and message[66]
+   - Reads 66 bytes from .pass file into buffer
+   - Performs critical operation: buffer[atoi(argv[1])] = '\0'
+   - Reads 65 more bytes from .pass file into message
+   - Compares buffer with argv[1] using strcmp()
+   - If match: execl("/bin/sh") → Shell spawned!
+   - If no match: puts(message) → Prints message from file
+   
+   Key vulnerability:
+   - atoi() converts argv[1] to integer
+   - That integer is used as index to place null byte in buffer
+   - strcmp() then compares the modified buffer with argv[1]
+   - If we make both strings empty, strcmp returns 0 (match)!
+
+3. Identify the exploit:
+   Understanding atoi() behavior:
+   - atoi("123") = 123
+   - atoi("0") = 0
+   - atoi("") = 0  ← Empty string returns 0!
+   - atoi("abc") = 0  ← Non-numeric returns 0
+   
+   Exploit logic with argv[1] = "":
+   1. atoi("") returns 0
+   2. buffer[0] = '\0' → Places null byte at start of buffer
+   3. Now buffer is an empty string (starts with '\0')
+   4. strcmp(buffer, "") compares two empty strings
+   5. strcmp("", "") returns 0 → Strings match!
+   6. Takes the if branch → execl("/bin/sh")
+   
+   This is a logic bypass vulnerability - the simplest exploit in RainFall!
+
+4. Connect to the VM via SSH:
+   ssh bonus3@localhost -p 2222
+   Password: 71d449df0f960b36e0055eb58c14d0f5d0ddc0b35328d657f91cf0df15910587
+
+5. Execute the exploit:
+   ./bonus3 ""
+   
+   Explanation:
+   - Provide empty string as argv[1]
+   - atoi("") = 0
+   - buffer[0] = '\0' makes buffer an empty string
+   - strcmp("", "") = 0 (match condition satisfied)
+   - execl("/bin/sh") executes
+   - Shell spawned as end user!
+   
+   Result:
+   $ ← Shell prompt appears (you have shell as end!)
+
+6. Read the final password:
+   cat /home/user/end/.pass
+   
+   Password: 3321b6f81659f9a71c76616f606e4b50189cecfea611393d5d649f75e157353c
+
+7. Exit and login as end:
+   exit
+   ssh end@localhost -p 2222
+   Password: 3321b6f81659f9a71c76616f606e4b50189cecfea611393d5d649f75e157353c
+   
+   Congratulations! You've completed RainFall! 🎉
