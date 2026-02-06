@@ -1,12 +1,12 @@
 # 🎯 Bonus0 - Null-Byte Poisoning Buffer Overflow
 
-![Helldivers Strategic Deployment](https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExaHQyYjR3NWV5bW5jZW5ha3JvNjFqZ3M5ZWVoM3R6Y2R4NGJ2NW8yYyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ckB5razpgN2rd4qTfe/giphy.gif)
+![Helldivers Salute](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExejJwMnpmeXZ0dHp1enptbDE2am9la2Z4Ymg0eXczcmRiNzFqczJjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VJN5s9dNGXLDqkLYF4/giphy.gif)
 
 Classic string handling vulnerability - when strncpy forgets the null terminator!
 
 ## 📋 Binary Analysis
 
-### Function: p() - The Null-Byte Killer
+### 🎯 p() - The Null-Byte Killer
 
 ```c
 void p(char *dest, char *prompt)
@@ -35,7 +35,7 @@ void p(char *dest, char *prompt)
 
 ---
 
-### Function: pp() - The Overflow Amplifier
+### 🎯 pp() - The Overflow Amplifier
 
 ```c
 void pp(char *param_1)
@@ -86,7 +86,7 @@ void pp(char *param_1)
 
 ---
 
-### Function: main() - The Victim
+### 🎯 main() - The Victim
 
 ```c
 int main(void)
@@ -116,7 +116,7 @@ From GDB analysis:
 
 ---
 
-## 🚨 Vulnerability: strncpy() Null-Byte Poisoning
+## 🚨 Vulnerability
 
 ### The Problem
 
@@ -448,71 +448,18 @@ cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 
 ---
 
-## 🛡️ Pro Tips & Security Notes
+> 💡 **Pro Tip**: Use `(payload; cat) | ./binary` to keep stdin open for shell interaction! The `cat` command prevents the pipe from closing.
 
-### The `cat` Trick
-
-**Why use `cat` in the exploit?**
-
-```bash
-(payload) | ./bonus0          # ❌ Shell exits immediately
-(payload; cat) | ./bonus0     # ✅ Shell stays open
-```
-
-When using pipes, stdin closes after the payload. Adding `cat` keeps stdin open, allowing you to interact with the spawned shell.
+> ⚠️ **Security Note**: Modern defenses include [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) (randomizes addresses), [DEP/NX](https://en.wikipedia.org/wiki/Executable_space_protection) (non-executable stack), and [FORTIFY_SOURCE](https://access.redhat.com/blogs/766093/posts/1976213) (bounds checking). Always use safe string functions like `strlcpy()` instead of `strncpy()`!
 
 ---
 
-### Modern Defenses Against This Attack
+## 🎉 Victory!
 
-| Protection | Effect | Bypass Difficulty |
-|------------|--------|------------------|
-| **ASLR** | Randomizes stack/env addresses | High - requires info leak |
-| **DEP/NX** | Marks stack non-executable | High - need ROP or ret2libc |
-| **Stack Canaries** | Detects buffer overflows | Medium - can leak or brute-force |
-| **FORTIFY_SOURCE** | Checks `strcpy/strcat` bounds | High - compile-time mitigation |
-| **Safer APIs** | Use `strncpy_s/strlcpy` | N/A - prevents bug entirely |
+![Helldivers Celebration](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExempicnBhODF0Y3BrZG5zaWIzMmM2MWExdDZuYWNnYWJrdnRtYXg4MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MlyicdUndRbn5zUiAL/giphy.gif)
 
----
+**Flag captured!** 🚩
 
-### Why `strncpy()` is Dangerous
-
-From the [strncpy(3) man page](https://man7.org/linux/man-pages/man3/strncpy.3.html):
-
-> "If there is no null byte among the first n bytes of src, the string placed in dest will not be null-terminated."
-
-**Safer alternatives:**
-- `strlcpy()` (BSD/macOS) - always null-terminates
-- `strncpy_s()` (C11 Annex K) - bounds-checked version
-- Manual: `strncpy()` + explicit null: `dest[n-1] = '\0'`
-
----
-
-### Fun Fact: The `cat` Command
-
-The `cat` command is often used in exploits not just to display files, but to **keep stdin open** for interactive shells. This technique dates back to early Unix exploitation in the 1990s.
-
----
-
-### Related Resources
-
-- **strncpy() pitfalls:** [CERT C Coding Standard - STR03-C](https://wiki.sei.cmu.edu/confluence/display/c/STR03-C.+Do+not+inadvertently+truncate+a+null-terminated+byte+string)
-- **Environment variables in memory:** [GNU C Library Manual](https://www.gnu.org/software/libc/manual/html_node/Environment-Variables.html)
-- **Shellcode source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428)
-
----
-
-## 🎉 Victory
-
-**Password for bonus1:**
 ```
 cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 ```
-
-**Techniques mastered:**
-- Null-byte poisoning via `strncpy()`
-- Multi-stage buffer overflow
-- Environment variable shellcode injection
-- Return-to-environment exploitation
-
-**Next level:** `ssh bonus1@localhost -p 2222`
