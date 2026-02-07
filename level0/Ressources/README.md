@@ -35,10 +35,10 @@ undefined4 main(undefined4 param_1,int param_2)
 
 ## 🚨 Vulnerability
 
-The binary has the **SUID bit** set for `level2` user, meaning it runs with `level2` privileges.
+The binary has the **SUID bit** set for `level1` user, meaning it runs with `level1` privileges.
 
 - ✅ Checks if the first argument equals `423` (`0x1a7` in hexadecimal)
-- 🐚 If true, spawns a shell with `level2` privileges after setting the effective UID/GID
+- 🐚 If true, spawns a shell with `level1` privileges after setting the effective UID/GID
 - 🎯 Simple privilege escalation through correct input
 
 ## 💣 Exploit
