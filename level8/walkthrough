@@ -10,7 +10,11 @@
    - If (auth + 32) is non-zero, spawns shell via system("/bin/sh")
    - Global variables: auth at 0x08049aac, service at 0x08049ab0
 
-3. Verify heap layout by running the program:
+3. Connect to the VM via SSH:
+   ssh level8@localhost -p 2222
+   Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
+
+4. Verify heap layout by running the program:
    ./level8
    
    Type: auth AAAA
@@ -21,7 +25,7 @@
    
    Distance: 0x804a018 - 0x804a008 = 16 bytes (0x10)
 
-4. Calculate the exploit:
+5. Calculate the exploit:
    Goal: Make (auth + 32) read non-zero data
    
    auth points to: 0x804a008
@@ -32,10 +36,6 @@
    
    Conclusion: If service is ≥16 bytes long, (auth + 32) will read 
    into service buffer and find non-zero data!
-
-5. Connect to the VM via SSH:
-   ssh level8@localhost -p 2222
-   Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
 
 6. Execute the exploit:
    ./level8

