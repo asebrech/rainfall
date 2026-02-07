@@ -4,10 +4,11 @@
 
 2. Analyze the binary with Ghidra:
    - p() function uses gets() which is unsafe
-   - Buffer is 76 bytes (0x4c)
+   - Buffer at EBP - 0x4c (76), ret_addr at EBP - 0x0c (12)
+   - Buffer size: 76 - 12 = 64 bytes
    - Return address protection: checks if address starts with 0xb (stack)
    - strdup() copies buffer to heap at predictable address
-   - EIP offset: 76 (buffer) + 4 (saved EBP) = 80 bytes
+   - EIP offset: 64 (buffer) + 4 (ret_addr) + 8 (padding) + 4 (saved EBP) = 80 bytes
 
 3. Find the heap address using ltrace:
    ltrace ./level2

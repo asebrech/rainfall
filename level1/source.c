@@ -10,23 +10,23 @@ void run(void)
 }
 
 /*
- * Assembly analysis:
- *
- * 08048480  PUSH EBP                 ; Save old base pointer
- * 08048481  MOV EBP, ESP             ; Set up new stack frame
- * 08048483  AND ESP, 0xfffffff0      ; Align stack to 16-byte boundary
- * 08048486  SUB ESP, 0x50            ; Allocate 80 bytes (0x50)
- * 08048489  LEA EAX, [ESP + 0x10]    ; Buffer starts at ESP + 16
- * 0804848d  MOV [ESP], EAX           ; Pass buffer address to gets()
- * 08048490  CALL gets
- * 08048495  LEAVE
- * 08048496  RET
- *
- * Stack layout after SUB ESP, 0x50:
- * - Buffer starts at ESP + 0x10 (16 bytes from ESP)
- * - Buffer size = 0x50 - 0x10 = 64 bytes
- * - Overflow requires 76 bytes to reach return address:
- *   64 (buffer) + ~8 (alignment padding) + 4 (saved EBP) = 76
+ * Stack layout:
+ * 
+ * High Memory
+ * ┌──────────────────────────────────┐
+ * │ Return Address     [EBP + 4]     │ ← 4 bytes
+ * ├──────────────────────────────────┤
+ * │ Saved EBP          [EBP]         │ ← 4 bytes
+ * ├──────────────────────────────────┤
+ * │ Alignment padding  (~8 bytes)    │ ← From AND ESP, 0xfffffff0
+ * ├──────────────────────────────────┤
+ * │ buffer[64]         [ESP + 0x10]  │ ← 64 bytes
+ * ├──────────────────────────────────┤
+ * │ Padding            [ESP]         │ ← 16 bytes
+ * └──────────────────────────────────┘
+ * Low Memory
+ * 
+ * Overflow: 64 (buffer) + 8 (align) + 4 (saved EBP) = 76 bytes to return address
  */
 int main(void)
 {
