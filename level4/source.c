@@ -3,22 +3,21 @@
 
 int m;
 
-void p(char *param_1)
+void p(char *string)
 {
-	printf(param_1);
-	return;
+	printf(string);  // Format string vulnerability!
 }
 
 void n(void)
 {
-	char buffer[520];
+	char buffer[512];
 	
-	fgets(buffer, 0x200, stdin);
+	fgets(buffer, 512, stdin);
 	p(buffer);
-	if (m == 0x1025544) {
+	
+	if (m == 16930116) {  // 0x1025544
 		system("/bin/cat /home/user/level5/.pass");
 	}
-	return;
 }
 
 int main(void)

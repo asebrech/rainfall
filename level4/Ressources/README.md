@@ -9,22 +9,20 @@ Advanced format string techniques - writing large values! 🚀
 ### 🎯 Key Functions (Decompiled)
 
 ```c
-void p(char *param_1)
+void p(char *string)
 {
-  printf(param_1);              // ⚠️ FORMAT STRING VULNERABILITY!
-  return;
+  printf(string);              // ⚠️ FORMAT STRING VULNERABILITY!
 }
 
 void n(void)
 {
-  char local_20c [520];
+  char buffer[512];
   
-  fgets(local_20c, 0x200, stdin);
-  p(local_20c);
-  if (m == 0x1025544) {         // If m equals 16,930,116
+  fgets(buffer, 512, stdin);   // 0x200 = 512
+  p(buffer);
+  if (m == 0x1025544) {        // 16,930,116 in decimal
     system("/bin/cat /home/user/level5/.pass");
   }
-  return;
 }
 ```
 
@@ -47,7 +45,7 @@ We need to write `0x01025544` (16,930,116 in decimal) to the global variable `m`
 
 **Problems:**
 1. ⏱️ **Takes forever** - Printing 16 million characters would take minutes/hours
-2. 💥 **Buffer overflow** - Our input buffer is only 512 bytes (0x200)
+2. 💥 **Buffer overflow** - Our input buffer is only 512 bytes
 3. 🚫 **Program might crash** - Memory/performance issues
 
 **Solution**: Write the value in **smaller chunks** instead of all at once!
