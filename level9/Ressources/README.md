@@ -10,78 +10,69 @@ Object-oriented exploitation - hijack virtual function tables! 🔥
 
 ```cpp
 class N {
-private:
+public:
     // Memory layout (108 bytes total):
-    // Offset 0x00: vtable pointer (4 bytes)
+    // Offset 0x00: vtable pointer (4 bytes) - set by compiler
     // Offset 0x04: annotation buffer (100 bytes)
     // Offset 0x68: int value (4 bytes)
     
-public:
-    int value;  // At offset 0x68
+    char annotation[100];  // Buffer at offset +4 (after vtable pointer)
+    int value;             // Integer value at offset +104
     
-    N(int param_1);                     // Constructor
-    void setAnnotation(char *param_1);  // Vulnerable method!
-    int operator+(N &param_1);          // Virtual function 1
-    int operator-(N &param_1);          // Virtual function 2
+    N(int n);
+    void setAnnotation(char *str);
+    int operator+(N &other);
+    int operator-(N &other);
 };
 ```
 
-### 🎯 Key Methods (Decompiled)
+### 🎯 Key Methods
 
 **Constructor:**
 ```cpp
-void N::N(int param_1)
+N::N(int n)
 {
-    // Vtable pointer set to 0x08048848
-    this->value = param_1;  // Store at offset 0x68
-    return;
+    value = n;  // Vtable pointer automatically set to 0x08048848
 }
 ```
 
 **setAnnotation (VULNERABLE!):**
 ```cpp
-void N::setAnnotation(char *param_1)
+void N::setAnnotation(char *str)
 {
-    size_t __n;
-    
-    __n = strlen(param_1);              // ⚠️ Stops at null bytes!
-    memcpy((char *)this + 4, param_1, __n);  // ⚠️ No bounds check!
-    return;
+    memcpy(annotation, str, strlen(str));  // ⚠️ No bounds checking - overflow!
 }
 ```
 
 **Virtual Functions:**
 ```cpp
-int N::operator+(N &param_1)
+int N::operator+(N &other)
 {
-    return this->value + param_1.value;  // Adds two integers
+    return value + other.value;
 }
 
-int N::operator-(N &param_1)
+int N::operator-(N &other)
 {
-    return this->value - param_1.value;  // Subtracts two integers
+    return value - other.value;
 }
 ```
 
 **Main Function:**
 ```cpp
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-    N *obj1;
-    N *obj2;
-    
     if (argc < 2) {
         _exit(1);
     }
     
-    obj1 = new N(5);                    // Allocate object 1
-    obj2 = new N(6);                    // Allocate object 2
+    N *obj1 = new N(5);  // Allocated on heap at ~0x804a008
+    N *obj2 = new N(6);  // Allocated on heap at ~0x804a078 (108 bytes after)
     
-    obj1->setAnnotation(argv[1]);       // ⚠️ Vulnerable call!
+    obj1->setAnnotation(argv[1]);  // ⚠️ Overflow can reach obj2's vtable!
     
-    (*obj2) + (*obj1);                  // 🎯 Calls obj2->operator+()
+    obj2->operator+(*obj1);  // ⚠️ Calls via vtable - uses corrupted pointer!
     
-    return;
+    return 0;
 }
 ```
 
