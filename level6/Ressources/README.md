@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 | Element | Address | Notes |
 |---------|---------|-------|
 | **Function `n()`** | `0x08048454` | Target - prints flag |
-| **Function `m()`** | `0x080484b4` | Decoy - prints "Nope" |
+| **Function `m()`** | `0x08048468` | Decoy - prints "Nope" |
 | **Buffer (heap)** | `0x0804a008` | 64 bytes, vulnerable |
 | **function_pointer (heap)** | `0x0804a050` | 4 bytes, our target |
 
@@ -134,7 +134,7 @@ INITIAL STATE:
             │ [size, flags, management info]             │
 0x0804a050: ├────────────────────────────────────────────┤
             │ function_pointer (4 bytes)                 │
-            │ [0x080484b4] → points to m()               │
+            │ [0x08048468] → points to m()               │
             └────────────────────────────────────────────┘
 
 
@@ -212,7 +212,7 @@ malloc(64):  buffer           = 0x0804a008
 malloc(4):   function_pointer = 0x0804a050
 
 Initial state:
-  *function_pointer = 0x080484b4 (address of m)
+  *function_pointer = 0x08048468 (address of m)
 
 
 Step 3: Vulnerable strcpy()
