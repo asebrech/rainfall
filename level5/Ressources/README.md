@@ -107,11 +107,11 @@ When you call a library function like `exit(1)`:
 ```
 Your Code: exit(1);
      ↓
-PLT (Procedure Linkage Table) stub
+PLT (Procedure Linkage Table) stub at 0x080483d0
      ↓
-Reads address from GOT: "Where is exit()?"
+Reads address from GOT at 0x08049838: "Where is exit()?"
      ↓
-Jumps to the address stored in GOT
+Jumps to the address stored in GOT (e.g., 0xb7e5ebb0)
      ↓
 Executes the actual exit() function in libc
 ```
@@ -127,13 +127,13 @@ NORMAL EXECUTION:
 ════════════════════════════════════════════════
 n() calls exit(1)
     ↓
-PLT stub for exit
+PLT stub for exit at 0x080483d0
     ↓
 Reads address from exit@GOT (0x08049838)
     │
     └─→ Contains: 0xb7e5ebb0 (address of libc exit)
     ↓
-Jumps to libc exit()
+Jumps to 0xb7e5ebb0 (libc exit function)
     ↓
 Program terminates ❌
 
@@ -142,13 +142,13 @@ HIJACKED EXECUTION (After GOT Overwrite):
 ════════════════════════════════════════════════
 n() calls exit(1)
     ↓
-PLT stub for exit
+PLT stub for exit at 0x080483d0
     ↓
 Reads address from exit@GOT (0x08049838)
     │
     └─→ Contains: 0x080484a4 (address of o) ✅ [WE WROTE THIS!]
     ↓
-Jumps to o() instead of exit()
+Jumps to 0x080484a4 (our o() function)
     ↓
 o() executes: system("/bin/sh")
     ↓
