@@ -80,11 +80,12 @@ int main(int argc, char **argv)
 
 | Element | Address | Notes |
 |---------|---------|-------|
-| **Vtable for N** | `0x08048848` | Function pointer table |
-| **N::operator+** | `0x0804873a` | First virtual function (called) |
-| **N::operator-** | `0x0804874e` | Second virtual function (unused) |
-| **obj1 (heap)** | `0x0804a008` | First object allocation |
-| **obj2 (heap)** | `0x0804a078` | Second object (112 bytes after) |
+| **Vtable for N** | `0x08048848` | Original function pointer table |
+| **N::operator+** | `0x0804873a` | Virtual function (what we hijack) |
+
+**Addresses used in exploit payload:**
+- `\x0c\xa0\x04\x08` → `0x0804a00c` (shellcode location)
+- `\x7c\xa0\x04\x08` → `0x0804a07c` (fake vtable location)
 
 **Key Observations:**
 - C++ program with virtual functions (vtable-based dispatch)
