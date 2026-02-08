@@ -6,8 +6,8 @@
    - Command-line interface with 4 commands: auth, reset, service, login
    - auth command: malloc(4) - allocates only 4 bytes on heap
    - service command: strdup(arg) - allocates string on heap
-   - login command: checks *(int *)(auth + 32) - out-of-bounds read!
-   - If (auth + 32) is non-zero, spawns shell via system("/bin/sh")
+   - login command: checks auth[32] - out-of-bounds read!
+   - If auth[32] is non-zero, spawns shell via system("/bin/sh")
    - Global variables: auth at 0x08049aac, service at 0x08049ab0
 
 3. Connect to the VM via SSH:
@@ -26,15 +26,15 @@
    Distance: 0x804a018 - 0x804a008 = 16 bytes (0x10)
 
 5. Calculate the exploit:
-   Goal: Make (auth + 32) read non-zero data
+   Goal: Make auth[32] read non-zero data
    
    auth points to: 0x804a008
-   auth + 32 is:   0x804a008 + 0x20 = 0x804a028
+   auth[32] is at: 0x804a008 + 0x20 = 0x804a028
    
    service points to: 0x804a018
-   auth + 32 offset into service: 0x804a028 - 0x804a018 = 16 bytes
+   auth[32] offset into service: 0x804a028 - 0x804a018 = 16 bytes
    
-   Conclusion: If service is ≥16 bytes long, (auth + 32) will read 
+   Conclusion: If service is ≥16 bytes long, auth[32] will read 
    into service buffer and find non-zero data!
 
 6. Execute the exploit:

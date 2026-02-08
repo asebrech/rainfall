@@ -9,54 +9,53 @@ Strategic heap placement - control what the program reads! 🔥
 ### 🎯 Main Function (Simplified Logic)
 
 ```c
-char *auth = NULL;     // Global pointer
-char *service = NULL;  // Global pointer
+char *auth = NULL;
+char *service = NULL;
 
 int main(void)
 {
     char buffer[128];
     
-    while (1)
-    {
+    while (1) {
         printf("%p, %p \n", auth, service);
         
-        if (fgets(buffer, 128, stdin) == NULL)
+        if (fgets(buffer, 128, stdin) == NULL) {
             return 0;
+        }
         
-        // Command: "auth <arg>"
-        if (strncmp(buffer, "auth ", 5) == 0)
-        {
-            auth = malloc(4);                    // ⚠️ Only 4 bytes!
+        // Command: "auth <username>"
+        if (strncmp(buffer, "auth ", 5) == 0) {
+            auth = (char *)malloc(4);
             auth[0] = '\0';
+            auth[1] = '\0';
+            auth[2] = '\0';
+            auth[3] = '\0';
             
-            if (strlen(buffer + 5) < 30)
-            {
-                strcpy(auth, buffer + 5);        // Copy argument
+            char *username = &buffer[5];
+            size_t username_len = strlen(username);
+            
+            if (username_len < 31) {
+                strcpy(auth, username);  // ⚠️ Overflow: 4-byte buffer, up to 30-byte copy
             }
         }
         
         // Command: "reset"
-        if (strncmp(buffer, "reset", 5) == 0)
-        {
-            free(auth);
+        if (strncmp(buffer, "reset", 5) == 0) {
+            free(auth);  // ⚠️ Dangling pointer: auth not set to NULL
         }
         
-        // Command: "service<arg>"
-        if (strncmp(buffer, "service", 7) == 0)
-        {
-            service = strdup(buffer + 8);        // Allocate on heap
+        // Command: "service<string>"
+        if (strncmp(buffer, "service", 7) == 0) {
+            service = strdup(&buffer[7]);
         }
         
         // Command: "login"
-        if (strncmp(buffer, "login", 5) == 0)
-        {
-            if (*(int *)(auth + 32) == 0)        // 🎯 Read 32 bytes past auth!
-            {
+        if (strncmp(buffer, "login", 5) == 0) {
+            if (auth[32] == 0) {  // ⚠️ Out-of-bounds: checks 32 bytes beyond 4-byte allocation
                 fwrite("Password:\n", 1, 10, stdout);
             }
-            else
-            {
-                system("/bin/sh");               // 🚩 Shell access!
+            else {
+                system("/bin/sh");
             }
         }
     }
@@ -77,7 +76,7 @@ int main(void)
 **Key Observations:**
 - Program implements a **command-line interface** with 4 commands
 - auth is allocated only **4 bytes** via `malloc(4)`
-- login checks **32 bytes past** auth pointer (`auth + 0x20`)
+- login checks **32 bytes past** auth pointer (`auth[32]`)
 - This is an **out-of-bounds read** - reading beyond allocated memory
 - service uses `strdup()` which allocates memory on the heap
 
@@ -91,7 +90,7 @@ auth = malloc(4);              // Allocates 4 bytes on heap
 service = strdup("AAAA...");   // Allocates adjacent chunk on heap
 
 // Later...
-if (*(int *)(auth + 32) == 0)  // Reads 32 bytes PAST auth!
+if (auth[32] == 0)  // Reads 32 bytes PAST auth!
 ```
 
 **The Problem:**
@@ -101,7 +100,7 @@ if (*(int *)(auth + 32) == 0)  // Reads 32 bytes PAST auth!
 - What does it read? **Undefined - could be anything!**
 
 **The Goal:**
-Arrange heap allocations so that `auth + 32` reads into the `service` buffer, which we control!
+Arrange heap allocations so that `auth[32]` reads into the `service` buffer, which we control!
 
 ## 🎯 How the Exploit Works
 
@@ -115,7 +114,7 @@ Arrange heap allocations so that `auth + 32` reads into the `service` buffer, wh
 
 **The Vulnerable Check:**
 ```c
-if (*(int *)(auth + 32) == 0) {
+if (auth[32] == 0) {
     fwrite("Password:\n", 1, 10, stdout);  // Failed login
 }
 else {
@@ -123,7 +122,7 @@ else {
 }
 ```
 
-To get a shell, we need `*(auth + 32)` to be **non-zero**. But how do we control what's 32 bytes past auth?
+To get a shell, we need `auth[32]` to be **non-zero**. But how do we control what's 32 bytes past auth?
 
 ### Heap Allocation Behavior
 
@@ -194,7 +193,7 @@ AFTER service = strdup("BBBBBBBBBBBBBBBB"):
             │  │                                           │
             │  │ (16 bytes into buffer)                   │
             │  │                                           │
-0x0804a028: │  └─────────────────────  ← auth+32 reads HERE!│
+0x0804a028: │  └─────────────────────  ← auth[32] reads HERE! │
             │                                              │
             └──────────────────────────────────────────────┘
 ```
@@ -231,7 +230,7 @@ Heap state:
 
 Command: `login`
 ```c
-if (*(int *)(auth + 32) == 0)  // Checks 0x0804a008 + 0x20 = 0x0804a028
+if (auth[32] == 0)  // Checks 0x0804a008 + 0x20 = 0x0804a028
 ```
 
 Where is `0x0804a028`?
@@ -246,18 +245,18 @@ The check reads the **16th byte** of the service buffer!
 **Step 4: Result**
 
 Since service contains "BBBBBBBBBBBBBBBB", the 16th byte is 'B' (0x42), which is **non-zero**!
-- Check: `*(auth + 32) == 0` → FALSE (it's 0x42424242)
+- Check: `auth[32] == 0` → FALSE (it's 0x42424242)
 - Else branch executes: `system("/bin/sh")`
 - **Shell spawned!** 🎉
 
 ### Calculating Minimum Service Length
 
-To make `auth + 32` land inside service:
+To make `auth[32]` land inside service:
 
 ```
 auth allocated at:     0x0804a008
 service allocated at:  0x0804a018  (16 bytes later due to malloc overhead)
-auth + 32 points to:   0x0804a028
+auth[32] points to:    0x0804a028
 
 Offset into service:
 0x0804a028 - 0x0804a018 = 0x10 = 16 bytes
@@ -266,7 +265,7 @@ Offset into service:
 **Therefore: service must be ≥ 16 bytes long!**
 
 If service were shorter than 16 bytes:
-- `auth + 32` would read **unallocated memory**
+- `auth[32]` would read **unallocated memory**
 - Likely contains zeros → check passes → no shell
 - Could segfault if the address is unmapped
 
@@ -313,9 +312,8 @@ Step 4: Login attempt
 ─────────────────────
 Command: login
 
-Check: *(int *)(auth + 32) == 0
-       *(int *)(0x0804a008 + 0x20) == 0
-       *(int *)(0x0804a028) == 0
+Check: auth[32] == 0
+       auth[32] at 0x0804a008 + 0x20 = 0x0804a028
 
 Reading at 0x0804a028:
   - This is 16 bytes into service buffer
