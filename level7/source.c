@@ -3,13 +3,7 @@
 #include <string.h>
 #include <time.h>
 
-char c[80];  // Global buffer for the flag
-
-// Heap structure (8 bytes each)
-struct data_struct {
-	int id;        // 4 bytes
-	char *data;    // 4 bytes pointer
-};
+char c[68];  // Global buffer where flag gets stored
 
 void m(void)
 {
@@ -21,26 +15,28 @@ void m(void)
 
 int main(int argc, char **argv)
 {
-	struct data_struct *ptr1;
-	struct data_struct *ptr2;
+	int *chunk1;   // Points to first heap chunk (8 bytes: int + pointer)
+	int *chunk2;   // Points to second heap chunk (8 bytes: int + pointer)
 	FILE *file;
 	
-	// Allocate two structures and their data buffers
-	ptr1 = malloc(sizeof(struct data_struct));
-	ptr1->id = 1;
-	ptr1->data = malloc(8);
+	// First allocation: 8 bytes storing [int, pointer]
+	chunk1 = (int *)malloc(8);
+	chunk1[0] = 1;                    // Store integer 1 at offset 0
+	chunk1[1] = (int)malloc(8);       // Store pointer at offset 4 (treating as int)
 	
-	ptr2 = malloc(sizeof(struct data_struct));
-	ptr2->id = 2;
-	ptr2->data = malloc(8);
+	// Second allocation: 8 bytes storing [int, pointer]
+	chunk2 = (int *)malloc(8);
+	chunk2[0] = 2;                    // Store integer 2 at offset 0
+	chunk2[1] = (int)malloc(8);       // Store pointer at offset 4 (treating as int)
 	
-	// Vulnerable strcpy calls
-	strcpy(ptr1->data, argv[1]);
-	strcpy(ptr2->data, argv[2]);
+	// Vulnerable: No bounds checking!
+	// chunk1[1] is a pointer stored as an int - cast it back to char* for strcpy
+	strcpy((char *)chunk1[1], argv[1]);  // Overflow can corrupt chunk2[1]
+	strcpy((char *)chunk2[1], argv[2]);  // Uses potentially corrupted pointer!
 	
-	// Read flag (would work on actual challenge server)
+	// Read flag into global buffer
 	file = fopen("/home/user/level8/.pass", "r");
-	fgets(c, 68, file);
+	fgets(c, 68, file);               // 0x44 = 68 in decimal
 	
 	puts("~~");
 	return 0;

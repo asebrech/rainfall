@@ -3,11 +3,11 @@
    Password: f73dcb7a06f60e3ccc608990b0a046359d42a1a0489ffeefd0d9cb2d7c9cb82d
 
 2. Analyze the binary with Ghidra:
-   - Two heap structures, each with an id and data pointer
-   - strcpy(ptr1->data, argv[1]) - heap overflow vulnerability
-   - strcpy(ptr2->data, argv[2]) - controlled write primitive
+   - Two heap chunks (8 bytes each), storing [int, pointer] pairs
+   - strcpy((char *)chunk1[1], argv[1]) - heap overflow vulnerability
+   - strcpy((char *)chunk2[1], argv[2]) - controlled write primitive
    - Hidden function m() at 0x080484f4 that prints global c
-   - Global variable c at 0x08049960 (80 bytes)
+   - Global variable c at 0x08049960 (68 bytes)
    - puts@GOT at 0x08049928
 
 3. Connect to the VM via SSH:
@@ -18,18 +18,18 @@
    ltrace ./level7 AAA BBB
    
    Output shows:
-   malloc(8)  = 0x0804a008  ← ptr1 structure
-   malloc(8)  = 0x0804a018  ← ptr1->data buffer
-   malloc(8)  = 0x0804a028  ← ptr2 structure
-   malloc(8)  = 0x0804a038  ← ptr2->data buffer
+   malloc(8)  = 0x0804a008  ← chunk1 (stores int + pointer)
+   malloc(8)  = 0x0804a018  ← chunk1[1] data buffer
+   malloc(8)  = 0x0804a028  ← chunk2 (stores int + pointer)
+   malloc(8)  = 0x0804a038  ← chunk2[1] data buffer
 
 5. Calculate the exploit:
    Goal: Overwrite puts@GOT to point to m()
    
-   Distance from ptr1->data to ptr2->data pointer:
+   Distance from chunk1[1] data buffer to chunk2[1] pointer field:
    0x0804a02c - 0x0804a018 = 20 bytes (0x14)
    
-   argv[1]: Overflow ptr1->data to overwrite ptr2->data with puts@GOT address
+   argv[1]: Overflow chunk1[1] data to overwrite chunk2[1] with puts@GOT address
    - Padding: 20 bytes
    - Target: 0x08049928 (puts@GOT)
    - Little-endian: \x28\x99\x04\x08

