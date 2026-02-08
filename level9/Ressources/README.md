@@ -80,12 +80,8 @@ obj2 vtable pointer:    0x804a078 (obj2 + 0) ← overwrite target
 obj2 annotation buffer: 0x804a07c (obj2 + 4) ← use as fake vtable
 
 Distance: 0x804a078 - 0x804a00c = 108 bytes
+Vtable (from Ghidra): 0x08048848
 ```
-
-### Binary addresses (from Ghidra)
-
-- Original vtable: `0x08048848`
-- N::operator+: `0x0804873a`
 
 ### Final payload addresses
 
