@@ -52,7 +52,7 @@
    [24-byte shellcode] + [84 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
    
    - Bytes 0-23: Shellcode (24 bytes)
-   - Bytes 24-107: NOP padding (\x90 * 84)
+   - Bytes 24-107: Padding (\x90 * 84) - fills space to reach offset 108
    - Bytes 108-111: Fake vtable pointer = 0x0804a07c (\x7c\xa0\x04\x08)
    - Bytes 112-115: Shellcode address = 0x0804a00c (\x0c\xa0\x04\x08)
    

