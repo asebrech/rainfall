@@ -28,23 +28,33 @@ void n(void)
 ### 🔑 Key Addresses (from Ghidra)
 
 **Function `o()`:**
-```asm
-o                                    XREF[1]: Entry Point(*)
-080484a4    55              PUSH       EBP
-080484a5    89 e5           MOV        EBP,ESP
-080484a7    83 ec 18        SUB        ESP,0x18
-080484aa    c7 04 24        MOV        dword ptr [ESP],s_/bin/sh_08048580
-            80 85 04 08
-080484b1    e8 fa fe        CALL       system
-            ff ff
+```c
+void o(void)
+{
+  system("/bin/sh");
+  _exit(1);
+  return;
+}
 ```
 
 **Address of `o()`**: `0x080484a4`
 
 **GOT Entry for `exit()`:**
 ```asm
-exit                                 XREF[2]: n:080484dd(c), Entry Point(*)
-08049838    b6 83 04 08    addr       FUN_080483b6
+**************************************************************
+                       *                       THUNK FUNCTION                       *
+                       **************************************************************
+                       thunk noreturn void exit(int __status)
+                         Thunked-Function: <EXTERNAL>::exit
+       void              <VOID>         <RETURN>
+       int               Stack[0x4]:4   __status
+                       exit@@GLIBC_2.0
+                       <EXTERNAL>::exit                                XREF[2]:     exit:080483d0(T), 
+                                                                                    exit:080483d0(c), 08049838(*)  
+  0804a014                 ??         ??
+  0804a015                 ??         ??
+  0804a016                 ??         ??
+  0804a017                 ??         ??
 ```
 
 **Address of `exit@GOT`**: `0x08049838`
