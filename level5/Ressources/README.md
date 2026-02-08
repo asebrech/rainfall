@@ -111,7 +111,7 @@ PLT (Procedure Linkage Table) stub at 0x080483d0
      ↓
 Reads address from GOT at 0x08049838: "Where is exit()?"
      ↓
-Jumps to the address stored in GOT (e.g., 0xb7e5ebb0)
+Jumps to the address stored in GOT (initially 0x0804a014, resolved to libc at runtime)
      ↓
 Executes the actual exit() function in libc
 ```
@@ -131,9 +131,9 @@ PLT stub for exit at 0x080483d0
     ↓
 Reads address from exit@GOT (0x08049838)
     │
-    └─→ Contains: 0xb7e5ebb0 (address of libc exit)
+    └─→ Contains: 0x0804a014 (initial value from Ghidra, resolves to libc at runtime)
     ↓
-Jumps to 0xb7e5ebb0 (libc exit function)
+Jumps to libc exit function
     ↓
 Program terminates ❌
 
@@ -257,7 +257,7 @@ Action 5: Process %5$hn         → Write 33,956 to position 5
 Step 3: GOT State
 ─────────────────
 exit@GOT (0x08049838):
-  Before: [libc exit address, e.g., 0xb7e5ebb0]
+  Before: 0x0804a014 (initial Ghidra value, resolves to libc at runtime)
   After:  0x080484a4 ✅
           ├─ Byte 0-1: 0x84a4 (written to 0x08049838)
           └─ Byte 2-3: 0x0804 (written to 0x0804983a)
