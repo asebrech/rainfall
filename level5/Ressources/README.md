@@ -17,20 +17,37 @@ void o(void)
 
 void n(void)
 {
-  char local_20c [520];
+  char buffer[512];
   
-  fgets(local_20c, 0x200, stdin);
-  printf(local_20c);            // ⚠️ FORMAT STRING VULNERABILITY!
+  fgets(buffer, 512, stdin);    // 0x200 = 512
+  printf(buffer);               // ⚠️ FORMAT STRING VULNERABILITY!
   exit(1);                      // ⚠️ NEW: Exits immediately!
 }
 ```
 
-### 🔑 Key Addresses
+### 🔑 Key Addresses (from Ghidra)
 
-| Element | Address | Notes |
-|---------|---------|-------|
-| **Function `o()`** | `0x080484a4` | Target - spawns shell |
-| **GOT entry `exit@GOT`** | `0x08049838` | We'll overwrite this |
+**Function `o()`:**
+```asm
+o                                    XREF[1]: Entry Point(*)
+080484a4    55              PUSH       EBP
+080484a5    89 e5           MOV        EBP,ESP
+080484a7    83 ec 18        SUB        ESP,0x18
+080484aa    c7 04 24        MOV        dword ptr [ESP],s_/bin/sh_08048580
+            80 85 04 08
+080484b1    e8 fa fe        CALL       system
+            ff ff
+```
+
+**Address of `o()`**: `0x080484a4`
+
+**GOT Entry for `exit()`:**
+```asm
+exit                                 XREF[2]: n:080484dd(c), Entry Point(*)
+08049838    b6 83 04 08    addr       FUN_080483b6
+```
+
+**Address of `exit@GOT`**: `0x08049838`
 
 **Key Observation**: 
 - `o()` exists but is **never called** in the code

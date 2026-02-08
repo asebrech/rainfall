@@ -9,10 +9,10 @@ void o(void)
 
 void n(void)
 {
-	char buffer[520];
+	char buffer[512];
 	
-	fgets(buffer, 0x200, stdin);
-	printf(buffer);
+	fgets(buffer, 512, stdin);  // 0x200 = 512
+	printf(buffer);             // Format string vulnerability!
 	exit(1);
 }
 
