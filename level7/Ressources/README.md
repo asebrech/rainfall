@@ -61,8 +61,69 @@ int main(int argc, char **argv)
 | **chunk2** | `0x0804a028` | Second heap chunk (8 bytes: int + pointer) |
 | **chunk2[1] data** | `0x0804a038` | 8-byte buffer |
 
+### Verifying Addresses in Ghidra
+
+#### Function `m()` at `0x080484f4`
+
+From Ghidra disassembly:
+
+```
+**************************************************************
+*                          FUNCTION                          *
+**************************************************************
+void __cdecl m(void)
+  void              <VOID>         <RETURN>
+                     m                                               XREF[3]:     Entry Point(*), 0804871c, 
+                                                                                  08048788(*)  
+080484f4 55              PUSH       EBP
+080484f5 89 e5           MOV        EBP,ESP
+080484f7 83 ec 18        SUB        ESP,0x18
+```
+
+This confirms function `m()` starts at **`0x080484f4`** and is referenced in the program (XREF shows it's called from main).
+
+#### Global variable `c` at `0x08049960`
+
+From Ghidra disassembly:
+
+```
+                     c                                               XREF[3]:     Entry Point(*), m:0804850f(*), 
+                                                                                  main:080485e4(*)  
+08049960                 undefined1 ??                    [0]                              XREF[3]:     Entry Point(*), m:0804850f(*), 
+                                                                                                        main:080485e4(*)  
+08049961                 undefined1 ??                    [1]
+08049962                 undefined1 ??                    [2]
+        ...
+080499af                 undefined1 ??                    [79]
+```
+
+This confirms global array `c` is located at **`0x08049960`** and consists of 80 bytes (`[0]` through `[79]`).
+
+**Note:** Ghidra shows an 80-byte allocation for array `c`, but the code uses `fgets(c, 68, file)` which only reads up to 68 bytes. This is a common safety pattern - the extra 12 bytes provide buffer space for the null terminator and guard against off-by-one errors or buffer boundary issues.
+
+#### GOT Entry `puts@GOT` at `0x08049928`
+
+From Ghidra disassembly:
+
+```
+**************************************************************
+*                       THUNK FUNCTION                       *
+**************************************************************
+int puts(char * __s)
+  Thunked-Function: <EXTERNAL>::puts
+  int               EAX:4          <RETURN>
+  char *            Stack[0x4]:4   __s
+                     puts                                            XREF[2]:     Entry Point(*), main:08048619(c)  
+08048400 ff 25 28        JMP        dword ptr [->puts]
+         99 04 08
+                     <EXTERNAL>::puts                                XREF[2]:     puts:08048400(*), 08049928(*)  
+08048406                 addr       <EXTERNAL>
+```
+
+The XREF notation `08049928(*)` confirms that **`puts@GOT`** is located at **`0x08049928`**. This is the Global Offset Table entry we'll overwrite to redirect `puts()` calls to our target function `m()`.
+
 **Key Observations:**
-- Two heap chunks storing [int, pointer] pairs (not structs!)
+- Two heap chunks storing [int, pointer] pairs
 - strcpy with no bounds checking on both buffers
 - Hidden function `m()` that prints global `c`
 - Program reads flag but only prints "~~"
