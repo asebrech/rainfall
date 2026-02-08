@@ -387,9 +387,9 @@ export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x
 - **200 NOPs (`\x90`)**: Landing zone for imprecise jumps
 - **24-byte execve shellcode**: Spawns `/bin/sh`
 
-**Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428)  
-**Author:** Touhid M.Shaikh  
-**Platform:** Linux x86 (32-bit)
+**Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428) by Touhid M.Shaikh (24-byte null-free execve)
+
+> 💡 This is the same shellcode used in **level2** and **level9**. See [level2 documentation](../../level2/Ressources/README.md#the-shellcode) for detailed assembly analysis.
 
 ---
 
