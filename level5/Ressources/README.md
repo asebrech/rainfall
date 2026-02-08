@@ -28,13 +28,28 @@ void n(void)
 ### 🔑 Key Addresses (from Ghidra)
 
 **Function `o()`:**
-```c
-void o(void)
-{
-  system("/bin/sh");
-  _exit(1);
-  return;
-}
+```asm
+**************************************************************
+                       *                          FUNCTION                          *
+                       **************************************************************
+                       undefined o()
+       undefined         <UNASSIGNED>   <RETURN>
+       undefined4        Stack[-0x1c]:4 local_1c                                XREF[2]:     080484aa(*), 
+                                                                                              080484b6(*)  
+                       o                                               XREF[3]:     Entry Point(*), 0804860c, 
+                                                                                    08048680(*)  
+  080484a4 55              PUSH       EBP
+  080484a5 89 e5           MOV        EBP,ESP
+  080484a7 83 ec 18        SUB        ESP,0x18
+  080484aa c7 04 24        MOV        dword ptr [ESP]=>local_1c,s_/bin/sh_080485f0     = "/bin/sh"
+           f0 85 04 08
+  080484b1 e8 fa fe        CALL       <EXTERNAL>::system                               int system(char * __command)
+           ff ff
+  080484b6 c7 04 24        MOV        dword ptr [ESP]=>local_1c,0x1
+           01 00 00 00
+  080484bd e8 ce fe        CALL       <EXTERNAL>::_exit                                void _exit(int __status)
+           ff ff
+                       -- Flow Override: CALL_RETURN (CALL_TERMINATOR)
 ```
 
 **Address of `o()`**: `0x080484a4`
