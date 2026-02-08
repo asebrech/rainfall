@@ -6,7 +6,7 @@ Strategic heap placement - control what the program reads! 🔥
 
 ## 📋 Binary Analysis
 
-### 🎯 Main Function (Simplified Logic)
+### 🎯 Main Function
 
 ```c
 char *auth = NULL;
