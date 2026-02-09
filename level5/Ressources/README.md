@@ -27,54 +27,24 @@ void n(void)
 
 ### 🔑 Key Addresses (from Ghidra)
 
-**Function `o()`:**
+**Function `o()` at address `0x080484a4`:**
 ```asm
-**************************************************************
-                       *                          FUNCTION                          *
-                       **************************************************************
-                       undefined o()
-       undefined         <UNASSIGNED>   <RETURN>
-       undefined4        Stack[-0x1c]:4 local_1c                                XREF[2]:     080484aa(*), 
-                                                                                              080484b6(*)  
-                       o                                               XREF[3]:     Entry Point(*), 0804860c, 
-                                                                                    08048680(*)  
-  080484a4 55              PUSH       EBP
-  080484a5 89 e5           MOV        EBP,ESP
-  080484a7 83 ec 18        SUB        ESP,0x18
-  080484aa c7 04 24        MOV        dword ptr [ESP]=>local_1c,s_/bin/sh_080485f0     = "/bin/sh"
-           f0 85 04 08
-  080484b1 e8 fa fe        CALL       <EXTERNAL>::system                               int system(char * __command)
-           ff ff
-  080484b6 c7 04 24        MOV        dword ptr [ESP]=>local_1c,0x1
-           01 00 00 00
-  080484bd e8 ce fe        CALL       <EXTERNAL>::_exit                                void _exit(int __status)
-           ff ff
-                       -- Flow Override: CALL_RETURN (CALL_TERMINATOR)
+080484a4 <o>:
+ 80484a4:  push   ebp
+ 80484a5:  mov    ebp,esp
+ 80484a7:  sub    esp,0x18
+ 80484aa:  mov    DWORD PTR [esp],0x80485f0    ; "/bin/sh"
+ 80484b1:  call   8048360 <system@plt>
+ 80484b6:  mov    DWORD PTR [esp],0x1
+ 80484bd:  call   80483a0 <_exit@plt>
 ```
 
-**Address of `o()`**: `0x080484a4`
-
-**GOT Entry for `exit()`:**
+**GOT Entry for `exit@GLIBC_2.0` at address `0x08049838`:**
 ```asm
-**************************************************************
-                       *                       THUNK FUNCTION                       *
-                       **************************************************************
-                       thunk noreturn void exit(int __status)
-                         Thunked-Function: <EXTERNAL>::exit
-       void              <VOID>         <RETURN>
-       int               Stack[0x4]:4   __status
-                       exit@@GLIBC_2.0
-                       <EXTERNAL>::exit                                XREF[2]:     exit:080483d0(T), 
-                                                                                    exit:080483d0(c), 08049838(*)  
-  0804a014                 ??         ??
-  0804a015                 ??         ??
-  0804a016                 ??         ??
-  0804a017                 ??         ??
+08049838 <exit@got.plt>
 ```
 
-**Address of `exit@GOT`**: `0x08049838`
-
-**Key Observation**: 
+**Key Observation:** 
 - `o()` exists but is **never called** in the code
 - `n()` has format string bug but calls `exit(1)` immediately
 - We can't interact with a shell normally because the program terminates
