@@ -11,19 +11,19 @@ Classic string handling vulnerability - when strncpy forgets the null terminator
 ```c
 void p(char *dest, char *prompt)
 {
-	char *pcVar1;
-	char buffer[4104];
+	char buffer[4096];
 	
 	puts(prompt);
 	read(0, buffer, 4096);
 	
-	// Replace newline with null terminator
-	pcVar1 = strchr(buffer, 10);
-	*pcVar1 = '\0';
+	// Find newline and replace with null terminator
+	char *newline = strchr(buffer, '\n');
+	*newline = '\0';
 	
-	// ⚠️ CRITICAL: strncpy does NOT null-terminate if source >= 20 bytes!
+	// ⚠️ CRITICAL VULNERABILITY: strncpy does NOT null-terminate if source >= n!
+	// If user inputs 20+ characters, dest will have NO null terminator
+	// This leads to out-of-bounds reads in strcpy() later
 	strncpy(dest, buffer, 20);
-	return;
 }
 ```
 
@@ -38,50 +38,44 @@ void p(char *dest, char *prompt)
 ### 🎯 pp() - The Overflow Amplifier
 
 ```c
-void pp(char *param_1)
+void pp(char *output_buffer)
 {
-	char cVar1;
-	uint uVar2;
-	char *pcVar3;
-	byte bVar4;
-	char local_34[20];  // First buffer
-	char local_20[20];  // Second buffer
+	char first_input[20];   // First 20-byte buffer
+	char second_input[20];  // Second 20-byte buffer
 	
-	bVar4 = 0;
+	// Read first input (up to 20 bytes, may not be null-terminated!)
+	p(first_input, " - ");
 	
-	p(local_34, " - ");  // Read first input (may lack null!)
-	p(local_20, " - ");  // Read second input (may lack null!)
+	// Read second input (up to 20 bytes, may not be null-terminated!)
+	p(second_input, " - ");
 	
-	// ⚠️ VULNERABLE: strcpy expects null-terminated string
-	// If local_34 has no null, it keeps reading into local_20!
-	strcpy(param_1, local_34);
+	// ⚠️ VULNERABILITY 1: strcpy expects null-terminated string
+	// If first_input has no null terminator, strcpy will read past it into second_input!
+	strcpy(output_buffer, first_input);
 	
-	// Calculate string length (will read past local_34 if no null!)
-	uVar2 = 0xffffffff;
-	pcVar3 = param_1;
-	do {
-		if (uVar2 == 0) break;
-		uVar2 = uVar2 - 1;
-		cVar1 = *pcVar3;
-		pcVar3 = pcVar3 + (uint)bVar4 * -2 + 1;
-	} while (cVar1 != '\0');
+	// Calculate length of what was copied
+	// (This is just strlen reimplemented)
+	size_t len = 0;
+	while (output_buffer[len] != '\0') {
+		len++;
+	}
 	
-	// Add space separator
-	(param_1 + (~uVar2 - 1))[0] = ' ';
-	(param_1 + (~uVar2 - 1))[1] = '\0';
+	// Add space separator at the end of the copied string
+	output_buffer[len] = ' ';
+	output_buffer[len + 1] = '\0';
 	
-	// ⚠️ Concatenate second buffer (more overflow!)
-	strcat(param_1, local_20);
-	return;
+	// ⚠️ VULNERABILITY 2: strcat concatenates without bounds checking
+	// Can overflow output_buffer if combined length > 54 bytes
+	strcat(output_buffer, second_input);
 }
 ```
 
 **The Cascade Effect:**
-1. `local_34` and `local_20` are adjacent 20-byte buffers
-2. If `local_34` has no null terminator, `strcpy()` reads into `local_20`
+1. `first_input` and `second_input` are adjacent 20-byte buffers
+2. If `first_input` has no null terminator, `strcpy()` reads into `second_input`
 3. This copies **40 bytes** instead of 20
 4. Then adds a space (1 byte)
-5. Then `strcat()` adds another **20 bytes** from `local_20`
+5. Then `strcat()` adds another **20 bytes** from `second_input`
 6. **Total: 61 bytes written into main's 54-byte buffer!**
 
 ---
@@ -91,11 +85,11 @@ void pp(char *param_1)
 ```c
 int main(void)
 {
-	char buffer[54];  // ⚠️ Only 54 bytes!
+	char buffer[54];      // ⚠️ Only 54 bytes!
 	
-	pp(buffer);       // Writes up to 61 bytes → overflow!
+	pp(buffer);           // Writes up to 61 bytes → overflow!
 	puts(buffer);
-	return;
+	return 0;
 }
 ```
 
@@ -107,8 +101,8 @@ From GDB analysis:
 
 | Element | Address | Notes |
 |---------|---------|-------|
-| **local_34** | `0xbffffbf8` | First 20-byte buffer in pp() |
-| **local_20** | `0xbffffc0c` | Second 20-byte buffer (20 bytes after local_34) |
+| **first_input** | `0xbffffbf8` | First 20-byte buffer in pp() |
+| **second_input** | `0xbffffc0c` | Second 20-byte buffer (20 bytes after first_input) |
 | **main's buffer** | `0xbffffc46` | 54-byte destination buffer |
 | **SHELLCODE env** | `0xbffffd44` | Environment variable location |
 | **Shellcode start** | `0xbffffd58` | After "SHELLCODE=" string (+20 bytes) |
@@ -156,10 +150,10 @@ strncpy(dest, src2, 20);  // Result: "exactlytwentychars!!" (NO null! ❌)
 ```
 Low Address
 ┌────────────────────────┐
-│ local_34 [20 bytes]    │ ← First input (may lack \0)
+│ first_input [20 bytes] │ ← First input (may lack \0)
 │ AAAAAAAAAAAAAAAAAAAA   │
 ├────────────────────────┤
-│ local_20 [20 bytes]    │ ← Second input (may lack \0)
+│ second_input [20 bytes]│ ← Second input (may lack \0)
 │ BBBBBBBBBBBBBBBBBBBB   │
 ├────────────────────────┤
 │ [other stack data]     │
@@ -174,24 +168,24 @@ High Address
 **What happens when both buffers lack null terminators:**
 
 ```
-strcpy(param_1, local_34):
-- Looks for null terminator in local_34
+strcpy(output_buffer, first_input):
+- Looks for null terminator in first_input
 - Doesn't find it (20 bytes, no null)
-- Keeps reading into local_20
+- Keeps reading into second_input
 - Copies: "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBB" (40 bytes!)
 
-strlen(param_1):
+strlen(output_buffer):
 - Scans for null terminator
 - Finds it at position 40
 - Returns length 40
 
 Add space and null:
-param_1[40] = ' '
-param_1[41] = '\0'
+output_buffer[40] = ' '
+output_buffer[41] = '\0'
 - Now: "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBB \0"
 
-strcat(param_1, local_20):
-- Appends local_20 starting at param_1[40]
+strcat(output_buffer, second_input):
+- Appends second_input starting at output_buffer[40]
 - Writes: "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBB BBBBBBBBBBBBBBBBBBBB\0"
 - Total length: 40 + 1 + 20 = 61 bytes
 ```
@@ -230,8 +224,8 @@ Memory layout after overflow:
 
 **Result:**
 ```
-local_34: [A][A][A]...[A][A] (20 bytes, no \0)
-local_20: [B][B][B]...[B][B] (20 bytes, no \0)
+first_input:  [A][A][A]...[A][A] (20 bytes, no \0)
+second_input: [B][B][B]...[B][B] (20 bytes, no \0)
 ```
 
 ---
@@ -241,9 +235,9 @@ local_20: [B][B][B]...[B][B] (20 bytes, no \0)
 **Goal:** Overflow main's buffer to overwrite return address
 
 **Technique:**
-- `strcpy()` reads past `local_34` into `local_20` (40 bytes)
+- `strcpy()` reads past `first_input` into `second_input` (40 bytes)
 - Add space separator (1 byte)
-- `strcat()` adds `local_20` again (20 bytes)
+- `strcat()` adds `second_input` again (20 bytes)
 - **Total: 61 bytes into 54-byte buffer**
 
 **Payload structure for input 2:**
@@ -303,14 +297,14 @@ Environment space (high stack addresses):
 └────────────────────────────────────────────────────────────┘
                           ↓
 ┌─ 2. p() processes inputs ──────────────────────────────────┐
-│   strncpy(local_34, "AAA...A", 20) → no null terminator!  │
-│   strncpy(local_20, "BBB...B\x58...", 20) → no null!      │
+│   strncpy(first_input, "AAA...A", 20) → no null terminator!│
+│   strncpy(second_input, "BBB...B\x58...", 20) → no null!  │
 └────────────────────────────────────────────────────────────┘
                           ↓
 ┌─ 3. pp() creates overflow ─────────────────────────────────┐
-│   strcpy(): reads 40 bytes (local_34 + local_20)          │
+│   strcpy(): reads 40 bytes (first_input + second_input)    │
 │   Adds space: 41 bytes total                              │
-│   strcat(): adds 20 more bytes from local_20              │
+│   strcat(): adds 20 more bytes from second_input          │
 │   Total: 61 bytes into 54-byte buffer                     │
 └────────────────────────────────────────────────────────────┘
                           ↓

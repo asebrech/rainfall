@@ -3,72 +3,65 @@
 #include <string.h>
 #include <unistd.h>
 
+// Read input and copy to dest (max 20 bytes, may not null-terminate!)
 void p(char *dest, char *prompt);
+
+// Read two inputs and concatenate them with space separator
 void pp(char *buffer);
 
 int main(void)
 {
 	char buffer[54];
 	
-	pp(buffer);
-	puts(buffer);
+	pp(buffer);      // Read and process two inputs
+	puts(buffer);    // Print concatenated result
 	return 0;
 }
 
-void pp(char *param_1)
+void pp(char *output_buffer)
 {
-	char cVar1;
-	uint uVar2;
-	char *pcVar3;
-	byte bVar4;
-	char local_34[20];  // First 20-byte buffer
-	char local_20[20];  // Second 20-byte buffer
+	char first_input[20];   // First 20-byte buffer
+	char second_input[20];  // Second 20-byte buffer
 	
-	bVar4 = 0;
+	// Read first input (up to 20 bytes, may not be null-terminated!)
+	p(first_input, " - ");
 	
-	// Read first input (20 bytes max)
-	p(local_34, " - ");
+	// Read second input (up to 20 bytes, may not be null-terminated!)
+	p(second_input, " - ");
 	
-	// Read second input (20 bytes max)
-	p(local_20, " - ");
+	// ⚠️ VULNERABILITY 1: strcpy expects null-terminated string
+	// If first_input has no null terminator, strcpy will read past it into second_input!
+	strcpy(output_buffer, first_input);
 	
-	// ⚠️ VULNERABLE: strcpy expects null-terminated string
-	// If local_34 has no null terminator, it keeps reading into local_20!
-	strcpy(param_1, local_34);
+	// Calculate length of what was copied
+	// (This is just strlen reimplemented)
+	size_t len = 0;
+	while (output_buffer[len] != '\0') {
+		len++;
+	}
 	
-	// Calculate string length (will read past local_34 if no null!)
-	uVar2 = 0xffffffff;
-	pcVar3 = param_1;
-	do {
-		if (uVar2 == 0) break;
-		uVar2 = uVar2 - 1;
-		cVar1 = *pcVar3;
-		pcVar3 = pcVar3 + (uint)bVar4 * -2 + 1;
-	} while (cVar1 != '\0');
+	// Add space separator at the end of the copied string
+	output_buffer[len] = ' ';
+	output_buffer[len + 1] = '\0';
 	
-	// Add space separator after the string
-	(param_1 + (~uVar2 - 1))[0] = ' ';
-	(param_1 + (~uVar2 - 1))[1] = '\0';
-	
-	// ⚠️ Concatenate second buffer (more overflow!)
-	strcat(param_1, local_20);
-	return;
+	// ⚠️ VULNERABILITY 2: strcat concatenates without bounds checking
+	// Can overflow output_buffer if combined length > 54 bytes
+	strcat(output_buffer, second_input);
 }
 
 void p(char *dest, char *prompt)
 {
-	char *pcVar1;
-	char buffer[4104];  // Large read buffer
+	char buffer[4096];
 	
 	puts(prompt);
 	read(0, buffer, 4096);
 	
 	// Find newline and replace with null terminator
-	pcVar1 = strchr(buffer, 10);
-	*pcVar1 = '\0';
+	char *newline = strchr(buffer, '\n');
+	*newline = '\0';
 	
-	// ⚠️ CRITICAL: strncpy does NOT null-terminate if source >= 20 bytes!
+	// ⚠️ CRITICAL VULNERABILITY: strncpy does NOT null-terminate if source >= n!
 	// If user inputs 20+ characters, dest will have NO null terminator
+	// This leads to out-of-bounds reads in strcpy() later
 	strncpy(dest, buffer, 20);
-	return;
 }

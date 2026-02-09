@@ -5,9 +5,9 @@
 2. Analyze the binary with Ghidra:
    - Three functions: main(), pp(), and p()
    - p() uses strncpy(dest, src, 20) which does NOT null-terminate if source >= 20 bytes
-   - pp() has two 20-byte buffers: local_34 and local_20 (adjacent in memory)
+   - pp() has two 20-byte buffers: first_input and second_input (adjacent in memory)
    - pp() uses strcpy() which expects null-terminated strings
-   - If local_34 has no null terminator, strcpy() reads into local_20
+   - If first_input has no null terminator, strcpy() reads into second_input
    - Buffer overflow: 20 + 20 + 1 (space) + 20 (strcat) = 61 bytes into main's 54-byte buffer
    - Overflow of 7 bytes allows return address overwrite
 
@@ -25,7 +25,7 @@
    Observe:
    - strncpy(0xbffffbf8, "AAAAAAAAAAAAAAAAAAAA", 20) - no null added
    - strncpy(0xbffffc0c, "BBBBBBBBBBBBBBBBBBBB", 20) - no null added
-   - strcpy() copies "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBB..." - reads past local_34!
+   - strcpy() copies "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBB..." - reads past first_input!
    - Program crashes with SIGSEGV
 
 5. Calculate offsets and prepare shellcode:
