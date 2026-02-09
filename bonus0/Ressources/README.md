@@ -97,16 +97,11 @@ int main(void)
 
 ### 🔑 Key Addresses
 
-From Ghidra analysis:
-
 | Element | Address | Notes |
 |---------|---------|-------|
-| **first_input** | `0xbffffbf8` | First 20-byte buffer in pp() |
-| **second_input** | `0xbffffc0c` | Second 20-byte buffer (20 bytes after first_input) |
-| **main's buffer** | `0xbffffc46` | 54-byte destination buffer |
 | **SHELLCODE env** | `0xbffffd44` | Environment variable location |
 | **Shellcode start** | `0xbffffd58` | After "SHELLCODE=" string (+20 bytes) |
-| **EIP overwrite** | Position 9-12 of input 2 | Confirmed via pattern analysis |
+| **EIP overwrite** | Position 9-12 of input 2 | Found via pattern analysis or testing |
 
 ---
 
@@ -246,11 +241,39 @@ second_input: [B][B][B]...[B][B] (20 bytes, no \0)
  └─ "BBBBBBBBB" └─ 0xbffffd58 (shellcode) └─ "CCCCCCC"
 ```
 
-**Why 9 bytes padding?**
-- From pattern analysis, EIP overwrite occurs at bytes 9-12 of input 2
-- First 9 B's fill the buffer up to the return address position
-- Next 4 bytes (our shellcode address) overwrite the return address
-- Last 7 bytes complete the overflow
+**Finding the EIP offset using Ghidra:**
+
+From `main()` disassembly:
+```
+SUB ESP, 0x40              # Stack frame: 64 bytes
+LEA EAX, [ESP + 0x16]      # buffer[54] at ESP + 0x16
+```
+
+**Calculate offset to return address:**
+```
+buffer[54] start: ESP + 0x16
+Return address:   ESP + 0x50 (after buffer + saved EBP)
+Offset: 0x50 - 0x16 = 0x3A = 58 bytes from buffer start
+```
+
+**Understanding the overflow:**
+```
+Written: 61 bytes total
+  - strcpy:  40 bytes (first_input + second_input leak)
+  - space:    1 byte
+  - strcat:  20 bytes (second_input again)
+
+Layout:
+  [0-53]:   buffer[54]     54 bytes
+  [54-57]:  saved EBP       4 bytes  
+  [58-61]:  return address  4 bytes ← target!
+```
+
+**Why bytes 9-12 of input 2 overwrite EIP:**
+
+The complexity comes from second_input being written twice (once via strcpy overflow, once via strcat). Through testing or using a cyclic pattern, we find that bytes 9-12 of input 2 land at the return address position. This is the empirically determined offset that successfully overwrites EIP.
+
+> 💡 **Pro Tip:** To find EIP offsets yourself, use a cyclic De Bruijn sequence pattern (e.g., with pwntools or msf-pattern) as input 2, then check which 4-byte sequence appears in EIP when the program crashes.
 
 ---
 

@@ -30,7 +30,11 @@
    Confirms: 61 bytes written into 54-byte buffer = 7-byte overflow
 
 5. Calculate offsets and prepare shellcode:
-   The EIP overwrite occurs at bytes 9-12 of the second input.
+   Finding EIP offset using Ghidra:
+   - From main(): buffer[54] at ESP + 0x16, return address at ESP + 0x50
+   - Offset to return address: 0x50 - 0x16 = 0x3A = 58 bytes
+   - With 61 bytes written (40 + 1 + 20), return address is overwritten
+   - Testing reveals EIP is at bytes 9-12 of input 2
    
    Payload structure:
    - Input 1: 20 bytes (any data)
