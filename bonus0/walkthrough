@@ -41,6 +41,5 @@
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 
 7. Exit and login as bonus1:
-   exit
-   ssh bonus1@localhost -p 2222
+   su bonus1
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
