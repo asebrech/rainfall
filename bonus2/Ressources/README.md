@@ -151,22 +151,11 @@ Offset  Content                     Source
 ```
 1. greetuser() allocates 64-byte greeting buffer
 2. strcpy(greeting, "Hyvää päivää ")  → 13 bytes written
-3. strcat(greeting, buffer)           → Concatenates 72 more bytes!
-   
-   Total: 13 + 72 = 85 bytes written to 64-byte buffer
-   Overflow: 21 bytes beyond buffer end
-   
-4. Stack corruption:
-   - Bytes 0-12:   Greeting "Hyvää päivää "
-   - Bytes 13-52:  argv[1] "A"*40
-   - Bytes 53-70:  argv[2][:18] "B"*18
-   - Bytes 71-74:  Overwrite saved EBP (don't care)
-   - Bytes 75-78:  Overwrite return address → 0xbffffee8
-   
+3. strcat(greeting, buffer)           → Concatenates 72 more bytes (total: 85 bytes)
+4. Return address overwritten with 0xbffffee8 (points to LANG NOP sled)
 5. greetuser() returns → EIP = 0xbffffee8
-6. CPU jumps to 0xbffffee8 (middle of NOP sled in LANG)
-7. NOP sled executes → slides into shellcode
-8. Shellcode executes → execve("/bin/sh")
+6. CPU jumps to NOP sled → slides into shellcode
+7. Shellcode executes → execve("/bin/sh")
 ```
 
 ### Finding the Return Address Offset Using Ghidra
