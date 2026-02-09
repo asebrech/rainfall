@@ -97,7 +97,7 @@ int main(void)
 
 ### 🔑 Key Addresses
 
-From GDB analysis:
+From Ghidra analysis:
 
 | Element | Address | Notes |
 |---------|---------|-------|
@@ -247,7 +247,7 @@ second_input: [B][B][B]...[B][B] (20 bytes, no \0)
 ```
 
 **Why 9 bytes padding?**
-- From GDB pattern analysis, EIP overwrite occurs at bytes 9-12 of input 2
+- From pattern analysis, EIP overwrite occurs at bytes 9-12 of input 2
 - First 9 B's fill the buffer up to the return address position
 - Next 4 bytes (our shellcode address) overwrite the return address
 - Last 7 bytes complete the overflow
@@ -387,27 +387,31 @@ export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x
 
 ---
 
-### Step 2: Find Shellcode Address (Optional)
+### Step 2: Calculate Shellcode Address
 
-If you need to verify the address:
+The address `0xbffffd58` is calculated based on stack layout analysis.
 
-```bash
-gdb ./bonus0
-```
+**From Ghidra analysis:**
 
-```gdb
-run
-# Input: AAAAAAAAAAAAAAAAAAAA
-# Input: BBBBBBBBBBBBBBBBBBBB
-x/500s $esp
-```
+In `pp()` function:
+- `first_input` (local_34): EBP - 0x30
+- `second_input` (local_20): EBP - 0x1c
 
-Look for:
-```
-0xbffffd44:  "SHELLCODE=\220\220\220\220..."
-```
+In `main()` function:
+- `buffer[54]` (local_3a): ESP + 0x16
+- Stack frame: 64 bytes (SUB ESP, 0x40)
 
-Add 20 bytes to skip "SHELLCODE=" → Target: `0xbffffd58`
+**Environment variable location:**
+
+Environment variables are stored at high stack addresses (above main's frame):
+- SHELLCODE variable starts at: ~0xbffffd44
+- String "SHELLCODE=" length: 20 bytes (0x14)
+- Shellcode begins at: 0xbffffd44 + 0x14 = **0xbffffd58**
+
+**Why this works:**
+- No ASLR → stack addresses are predictable
+- 200-byte NOP sled → large landing zone (±100 bytes tolerance)
+- Environment variables → consistent high stack location
 
 ---
 

