@@ -313,6 +313,68 @@ Environment space (high stack addresses):
          └─ We jump to 0xbffffd55 (NOP sled)
 ```
 
+---
+
+#### Understanding the NOP Sled
+
+**What is NOP?**
+- **NOP** = "No Operation" - an instruction that does nothing
+- In x86 assembly: opcode `0x90` (one byte)
+- CPU executes it, increments instruction pointer, continues to next instruction
+
+**What is a NOP sled?**
+
+A long sequence of NOP instructions placed before the shellcode:
+
+```
+Memory layout:
+[NOP][NOP][NOP]...[NOP][Shellcode]
+ \x90 \x90 \x90     \x90  \x31\xc0\x99...
+
+Example addresses:
+0xbffffd4f: \x90  ← NOP sled starts
+0xbffffd50: \x90
+0xbffffd51: \x90
+    ...
+0xbffffd55: \x90  ← We jump here
+0xbffffd56: \x90
+    ...
+0xbffffdce: \x90  ← Last NOP
+0xbffffdcf: \x31  ← Shellcode starts (execve)
+0xbffffdd0: \xc0
+0xbffffdd1: \x99
+    ...
+```
+
+**How the "sliding" works:**
+
+1. We jump to address `0xbffffd55` (somewhere in the NOP region)
+2. CPU executes: `\x90` (NOP) → instruction pointer advances to next byte
+3. CPU executes: `\x90` (NOP) → instruction pointer advances to next byte
+4. This repeats ~120 times through the NOP instructions
+5. CPU reaches shellcode (`\x31\xc0\x99...`) → begins executing `/bin/sh`
+
+**Why it's called a "sled":**
+
+Like sliding down a snowy hill, execution "slides" through the NOPs, always ending at the shellcode at the bottom. No matter where you land on the slope, you slide to the destination!
+
+**Visual representation:**
+```
+    Jump anywhere here ↓
+         ╔═══════════════════════════╗
+         ║  \x90 \x90 \x90 \x90      ║
+         ║  \x90 \x90 \x90 \x90      ║ ← NOP sled (200 bytes)
+Slide → ║  \x90 \x90 \x90 \x90      ║   "The slope"
+         ║  \x90 \x90 \x90 \x90      ║
+         ╚═══════════════════════════╝
+                    ↓
+         ╔═══════════════════════════╗
+         ║  \x31\xc0\x99\x50\x68...  ║ ← Shellcode (24 bytes)
+         ╚═══════════════════════════╝   "The destination"
+```
+
+---
+
 **Why the NOP sled?**
 - Gives us a **200-byte landing zone**
 - Even if address is slightly off, we'll hit a NOP
@@ -411,7 +473,7 @@ export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x
 ```
 
 **Shellcode breakdown:**
-- **200 NOPs (`\x90`)**: Landing zone for imprecise jumps
+- **200 NOPs (`\x90`)**: NOP sled - creates a 200-byte landing zone (see Phase 3 for detailed explanation)
 - **24-byte execve shellcode**: Spawns `/bin/sh`
 
 **Source:** [Exploit-DB #42428](https://www.exploit-db.com/shellcodes/42428) by Touhid M.Shaikh (24-byte null-free execve)
