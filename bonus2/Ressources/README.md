@@ -219,6 +219,40 @@ The exact byte offset of 18 bytes padding in argv[2] is calculated to align the 
 
 The clever trick is that `getenv("LANG")` only reads the first two characters ("fi") to set the language, but the rest of the variable (NOP sled + shellcode) remains in memory, accessible via the environment pointer.
 
+## 🔍 Finding the LANG Address with GDB
+
+**Why we need GDB:**
+
+Ghidra is excellent for static analysis (finding buffer sizes, stack layouts, and calculating offsets), but it **cannot tell us where environment variables are located at runtime**. Environment variables are stored on the stack at addresses that can only be determined when the program is actually running.
+
+**What we do with GDB:**
+
+We use GDB to find the runtime memory address of our LANG environment variable:
+
+```bash
+gdb -q ./bonus2
+(gdb) break *main+125          # Set breakpoint after environment is set up
+(gdb) run test test            # Run with dummy arguments
+(gdb) x/20s *((char**)environ) # Examine environment variables in memory
+```
+
+**What to look for:**
+
+```
+0xbffffeb9: "LANG=fi\220\220\220\220..."
+```
+
+This shows us that:
+- LANG environment variable starts at `0xbffffeb9`
+- "LANG=" takes 5 bytes → NOP sled starts at `0xbffffeb9 + 5 + 2 = 0xbffffec0`
+- We target `0xbffffec0 + 40 = 0xbffffee8` (safe landing in NOP sled)
+
+**Why this address works:**
+
+The 100-byte NOP sled creates a large "landing zone" - any address between `0xbffffec0` and `0xbfffff24` will slide through NOPs to reach the shellcode. We choose an address 40 bytes into the sled for safety.
+
+> **Note:** Environment variable addresses can vary slightly between runs, but on systems without ASLR (like this VM), they remain consistent enough for exploitation. The large NOP sled compensates for minor variations.
+
 ## 💣 Execute the Exploit
 
 ```bash
@@ -240,13 +274,7 @@ $ cat /home/user/bonus3/.pass
 71d449df0f960b36e0055eb58c14d0f5d0ddc0b35328d657f91cf0df15910587
 ```
 
-**Address calculation notes:**
-- Find LANG address in GDB: `x/20s *((char**)environ)`
-- LANG typically at `~0xbffffeb9`
-- NOP sled starts at LANG + 7 bytes (`0xbffffec0`)
-- Target 40 bytes into NOP sled: `0xbffffec0 + 40 = 0xbffffee8`
-
-> 💡 **Pro Tip**: The 100-byte NOP sled provides a huge landing zone - any address from `0xbffffec0` to `0xbfffff24` will work!
+> 💡 **Pro Tip**: If the exploit doesn't work, use GDB (see section above) to find your exact LANG address and adjust the return address accordingly. The 100-byte NOP sled provides a huge landing zone!
 
 > ⚠️ **Security Note**: Modern systems use [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) to randomize environment variable addresses, making this exploit unreliable. Additionally, [stack canaries](https://en.wikipedia.org/wiki/Buffer_overflow_protection#Canaries) would detect the stack corruption before the return.
 
