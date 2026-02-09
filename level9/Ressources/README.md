@@ -97,6 +97,54 @@ Both are null-free! ✅
 
 ## 🔧 The Exploit Strategy
 
+### What is a Vtable?
+
+A **vtable (virtual table)** is a mechanism C++ uses to implement polymorphism and virtual functions.
+
+**The Concept:**
+
+When a C++ class has virtual functions, the compiler creates a hidden table of function pointers called a **vtable**. Each object of that class stores a pointer to this table as its first member.
+
+**Memory Layout:**
+
+```
+C++ Object in Memory:
+┌─────────────────────────────────┐
+│ vtable pointer    [offset +0]   │ ← Points to vtable (4 bytes)
+├─────────────────────────────────┤
+│ member data       [offset +4]   │ ← Class member variables
+│ ...                             │
+└─────────────────────────────────┘
+
+Vtable (in .rodata section):
+┌─────────────────────────────────┐
+│ function pointer [vtable +0]    │ → Address of method1()
+├─────────────────────────────────┤
+│ function pointer [vtable +4]    │ → Address of method2()
+├─────────────────────────────────┤
+│ function pointer [vtable +8]    │ → Address of method3()
+└─────────────────────────────────┘
+```
+
+**How Virtual Calls Work:**
+
+```cpp
+obj->virtualMethod();  // C++ code
+```
+
+Translates to assembly:
+```asm
+mov edx, [obj]      ; 1. Load vtable pointer from object
+mov edx, [edx]      ; 2. Load function pointer from vtable[0]
+call edx            ; 3. Call the function
+```
+
+**Why This Matters for Exploitation:**
+
+If we can overwrite an object's vtable pointer, we control where the program looks for function addresses. By pointing it to our controlled memory containing a shellcode address, we can hijack execution when a virtual function is called.
+
+This is exactly what we do in level9: overwrite `obj2`'s vtable pointer to point to `obj2`'s own annotation buffer (which we control), and place our shellcode address there.
+
 ### C++ Virtual Call Mechanism
 
 **Normal call:** `obj->method()` compiles to:
