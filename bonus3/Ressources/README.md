@@ -135,5 +135,3 @@ Password: 3321b6f81659f9a71c76616f606e4b50189cecfea611393d5d649f75e157353c
 ```
 3321b6f81659f9a71c76616f606e4b50189cecfea611393d5d649f75e157353c
 ```
-
-**Congratulations!** You've conquered all 14 levels of RainFall, mastering binary exploitation from basic logic flaws to advanced heap corruption. The journey ends where it began—with elegant simplicity.
