@@ -6,19 +6,27 @@ Welcome to format string exploitation! 🎨
 
 ## 📋 Binary Analysis
 
-### 🎯 V Function (Decompiled)
+### 🔍 Reconstructed Source Code
 ```c
+int m;
+
 void v(void)
 {
-  char local_20c [520];
-  
-  fgets(local_20c, 0x200, stdin);
-  printf(local_20c);              // ⚠️ FORMAT STRING VULNERABILITY!
-  if (m == 0x40) {                // If m equals 64
-    fwrite("Wait what?!\n", 1, 0xc, stdout);
-    system("/bin/sh");            // Spawn shell!
-  }
-  return;
+	char buffer[512];
+	
+	fgets(buffer, 512, stdin);
+	printf(buffer);
+	if (m == 64) {
+		fwrite("Wait what?!\n", 1, 12, stdout);
+		system("/bin/sh");
+	}
+	return;
+}
+
+int main(void)
+{
+	v();
+	return 0;
 }
 ```
 
@@ -34,12 +42,12 @@ m                                    XREF[2]: Entry Point(*), v:080484da(R)
 
 ### The Problem
 ```c
-printf(local_20c);  // ❌ WRONG! No format specifier
+printf(buffer);  // ❌ WRONG! No format specifier
 ```
 
 **Should be**:
 ```c
-printf("%s", local_20c);  // ✅ CORRECT
+printf("%s", buffer);  // ✅ CORRECT
 ```
 
 ### What This Allows
