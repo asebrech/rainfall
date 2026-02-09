@@ -20,12 +20,6 @@
 
 4. Execute the exploit:
    ./bonus3 ""
-   
-   Logic:
-   - atoi("") = 0
-   - buffer[0] = '\0' (buffer becomes empty string)
-   - strcmp("", "") = 0 (strings match)
-   - execl("/bin/sh") executes
 
 5. Read the final password:
    cat /home/user/end/.pass
